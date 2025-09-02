@@ -1,0 +1,3062 @@
+===== lib/bootstrap.dart =====
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import 'app.dart';
+import 'config/env.dart';
+import 'config/logger.dart';
+import 'data/local/hive/boxes.dart';
+import 'data/local/drift/db.dart';
+import 'services/notifications/fcm_service.dart';
+
+Future<void> bootstrap() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Set preferred orientations
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
+  // Initialize Hive
+  await Hive.initFlutter();
+  await HiveBoxes.init();
+
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    anonKey: Env.supabaseAnonKey,
+  );
+
+  // Initialize Database
+  await DatabaseHelper.instance.database;
+
+  // Initialize Firebase Messaging
+  await FirebaseMessaging.instance.requestPermission();
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Initialize Local Notifications
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const DarwinInitializationSettings initializationSettingsIOS =
+      DarwinInitializationSettings();
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+    iOS: initializationSettingsIOS,
+  );
+
+  await FlutterLocalNotificationsPlugin().initialize(initializationSettings);
+
+  // Handle errors
+  FlutterError.onError = (details) {
+    logger.e('Flutter Error',
+        error: details.exception, stackTrace: details.stack);
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    logger.e('Platform Error', error: error, stackTrace: stack);
+    return true;
+  };
+
+  runApp(const ArsenalSellApp());
+}
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Supabase.initialize(
+    url: Env.supabaseUrl,
+    anonKey: Env.supabaseAnonKey,
+  );
+  await FCMService.handleBackgroundMessage(message);
+}
+
+
+===== lib/core/utils/date_time.dart =====
+import 'package:intl/intl.dart';
+
+class DateTimeUtils {
+  // Common date formats
+  static const String defaultDateFormat = 'dd/MM/yyyy';
+  static const String defaultTimeFormat = 'HH:mm';
+  static const String defaultDateTimeFormat = 'dd/MM/yyyy HH:mm';
+  static const String apiDateTimeFormat = 'yyyy-MM-ddTHH:mm:ss.SSSZ';
+  static const String displayDateFormat = 'EEEE, dd MMMM yyyy';
+  static const String shortDateFormat = 'dd/MM';
+  static const String monthYearFormat = 'MMMM yyyy';
+
+  // Spanish locale formatters
+  static final DateFormat _dateFormatter =
+      DateFormat(defaultDateFormat, 'es_ES');
+  static final DateFormat _timeFormatter =
+      DateFormat(defaultTimeFormat, 'es_ES');
+  static final DateFormat _dateTimeFormatter =
+      DateFormat(defaultDateTimeFormat, 'es_ES');
+  static final DateFormat _displayDateFormatter =
+      DateFormat(displayDateFormat, 'es_ES');
+  static final DateFormat _shortDateFormatter =
+      DateFormat(shortDateFormat, 'es_ES');
+  static final DateFormat _monthYearFormatter =
+      DateFormat(monthYearFormat, 'es_ES');
+
+  /// Format date to default format (dd/MM/yyyy)
+  static String formatDate(DateTime? dateTime) {
+    if (dateTime == null) return '';
+    return _dateFormatter.format(dateTime);
+  }
+
+  /// Format time to default format (HH:mm)
+  static String formatTime(DateTime? dateTime) {
+    if (dateTime == null) return '';
+    return _timeFormatter.format(dateTime);
+  }
+
+  /// Format date and time to default format (dd/MM/yyyy HH:mm)
+  static String formatDateTime(DateTime? dateTime) {
+    if (dateTime == null) return '';
+    return _dateTimeFormatter.format(dateTime);
+  }
+
+  /// Format date for display (Lunes, 15 enero 2024)
+  static String formatDisplayDate(DateTime? dateTime) {
+    if (dateTime == null) return '';
+    return _displayDateFormatter.format(dateTime);
+  }
+
+  /// Format short date (15/01)
+  static String formatShortDate(DateTime? dateTime) {
+    if (dateTime == null) return '';
+    return _shortDateFormatter.format(dateTime);
+  }
+
+  /// Format month and year (enero 2024)
+  static String formatMonthYear(DateTime? dateTime) {
+    if (dateTime == null) return '';
+    return _monthYearFormatter.format(dateTime);
+  }
+
+  /// Format custom date pattern
+  static String formatCustom(DateTime? dateTime, String pattern) {
+    if (dateTime == null) return '';
+    return DateFormat(pattern, 'es_ES').format(dateTime);
+  }
+
+  /// Get relative time (hace 2 horas, ayer, etc.)
+  static String getRelativeTime(DateTime? dateTime) {
+    if (dateTime == null) return '';
+
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      if (difference.inDays == 1) {
+        return 'Ayer';
+      } else if (difference.inDays < 7) {
+        return 'Hace ${difference.inDays} días';
+      } else if (difference.inDays < 30) {
+        final weeks = (difference.inDays / 7).floor();
+        return weeks == 1 ? 'Hace 1 semana' : 'Hace $weeks semanas';
+      } else if (difference.inDays < 365) {
+        final months = (difference.inDays / 30).floor();
+        return months == 1 ? 'Hace 1 mes' : 'Hace $months meses';
+      } else {
+        final years = (difference.inDays / 365).floor();
+        return years == 1 ? 'Hace 1 año' : 'Hace $years años';
+      }
+    } else if (difference.inHours > 0) {
+      return difference.inHours == 1
+          ? 'Hace 1 hora'
+          : 'Hace ${difference.inHours} horas';
+    } else if (difference.inMinutes > 0) {
+      return difference.inMinutes == 1
+          ? 'Hace 1 minuto'
+          : 'Hace ${difference.inMinutes} minutos';
+    } else {
+      return 'Ahora mismo';
+    }
+  }
+
+  /// Get time of day greeting
+  static String getTimeGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'Buenos días';
+    } else if (hour < 18) {
+      return 'Buenas tardes';
+    } else {
+      return 'Buenas noches';
+    }
+  }
+
+  /// Check if date is today
+  static bool isToday(DateTime? dateTime) {
+    if (dateTime == null) return false;
+    final now = DateTime.now();
+    return dateTime.year == now.year &&
+        dateTime.month == now.month &&
+        dateTime.day == now.day;
+  }
+
+  /// Check if date is yesterday
+  static bool isYesterday(DateTime? dateTime) {
+    if (dateTime == null) return false;
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    return dateTime.year == yesterday.year &&
+        dateTime.month == yesterday.month &&
+        dateTime.day == yesterday.day;
+  }
+
+  /// Check if date is this week
+  static bool isThisWeek(DateTime? dateTime) {
+    if (dateTime == null) return false;
+    final now = DateTime.now();
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 6));
+
+    return dateTime.isAfter(startOfWeek.subtract(const Duration(days: 1))) &&
+        dateTime.isBefore(endOfWeek.add(const Duration(days: 1)));
+  }
+
+  /// Get start of day (00:00:00)
+  static DateTime startOfDay(DateTime dateTime) {
+    return DateTime(dateTime.year, dateTime.month, dateTime.day);
+  }
+
+  /// Get end of day (23:59:59)
+  static DateTime endOfDay(DateTime dateTime) {
+    return DateTime(dateTime.year, dateTime.month, dateTime.day, 23, 59, 59);
+  }
+
+  /// Get start of week (Monday)
+  static DateTime startOfWeek(DateTime dateTime) {
+    final daysToSubtract = dateTime.weekday - 1;
+    return startOfDay(dateTime.subtract(Duration(days: daysToSubtract)));
+  }
+
+  /// Get end of week (Sunday)
+  static DateTime endOfWeek(DateTime dateTime) {
+    final daysToAdd = 7 - dateTime.weekday;
+    return endOfDay(dateTime.add(Duration(days: daysToAdd)));
+  }
+
+  /// Get start of month
+  static DateTime startOfMonth(DateTime dateTime) {
+    return DateTime(dateTime.year, dateTime.month, 1);
+  }
+
+  /// Get end of month
+  static DateTime endOfMonth(DateTime dateTime) {
+    return DateTime(dateTime.year, dateTime.month + 1, 0, 23, 59, 59);
+  }
+
+  /// Parse date string with multiple formats
+  static DateTime? parseDate(String? dateString) {
+    if (dateString == null || dateString.isEmpty) return null;
+
+    final formats = [
+      defaultDateTimeFormat,
+      defaultDateFormat,
+      apiDateTimeFormat,
+      'yyyy-MM-dd',
+      'dd-MM-yyyy',
+      'yyyy/MM/dd',
+      'MM/dd/yyyy',
+    ];
+
+    for (final format in formats) {
+      try {
+        return DateFormat(format).parse(dateString);
+      } catch (e) {
+        continue;
+      }
+    }
+
+    return null;
+  }
+
+  /// Calculate age from birth date
+  static int calculateAge(DateTime birthDate) {
+    final now = DateTime.now();
+    int age = now.year - birthDate.year;
+
+    if (now.month < birthDate.month ||
+        (now.month == birthDate.month && now.day < birthDate.day)) {
+      age--;
+    }
+
+    return age;
+  }
+
+  /// Calculate duration between two dates
+  static String formatDuration(Duration duration) {
+    if (duration.inDays > 0) {
+      return '${duration.inDays}d ${duration.inHours % 24}h';
+    } else if (duration.inHours > 0) {
+      return '${duration.inHours}h ${duration.inMinutes % 60}m';
+    } else if (duration.inMinutes > 0) {
+      return '${duration.inMinutes}m';
+    } else {
+      return '${duration.inSeconds}s';
+    }
+  }
+
+  /// Get business days between two dates
+  static int getBusinessDays(DateTime startDate, DateTime endDate) {
+    int businessDays = 0;
+    DateTime current = startDate;
+
+    while (current.isBefore(endDate) || current.isAtSameMomentAs(endDate)) {
+      if (current.weekday != DateTime.saturday &&
+          current.weekday != DateTime.sunday) {
+        businessDays++;
+      }
+      current = current.add(const Duration(days: 1));
+    }
+
+    return businessDays;
+  }
+
+  /// Check if it's business hours
+  static bool isBusinessHours({
+    DateTime? dateTime,
+    int startHour = 8,
+    int endHour = 18,
+  }) {
+    final checkTime = dateTime ?? DateTime.now();
+
+    // Check if it's weekend
+    if (checkTime.weekday == DateTime.saturday ||
+        checkTime.weekday == DateTime.sunday) {
+      return false;
+    }
+
+    // Check if it's within business hours
+    return checkTime.hour >= startHour && checkTime.hour < endHour;
+  }
+
+  /// Get next business day
+  static DateTime getNextBusinessDay([DateTime? from]) {
+    DateTime nextDay = (from ?? DateTime.now()).add(const Duration(days: 1));
+
+    while (nextDay.weekday == DateTime.saturday ||
+        nextDay.weekday == DateTime.sunday) {
+      nextDay = nextDay.add(const Duration(days: 1));
+    }
+
+    return nextDay;
+  }
+
+  /// Format time spent (for visit duration, etc.)
+  static String formatTimeSpent(DateTime? startTime, DateTime? endTime) {
+    if (startTime == null) return 'No iniciado';
+    if (endTime == null) return 'En progreso';
+
+    final duration = endTime.difference(startTime);
+    return formatDuration(duration);
+  }
+
+  /// Get week number of year
+  static int getWeekOfYear(DateTime dateTime) {
+    final startOfYear = DateTime(dateTime.year, 1, 1);
+    final days = dateTime.difference(startOfYear).inDays;
+    return ((days + startOfYear.weekday) / 7).ceil();
+  }
+
+  /// Check if date is in the future
+  static bool isFuture(DateTime? dateTime) {
+    if (dateTime == null) return false;
+    return dateTime.isAfter(DateTime.now());
+  }
+
+  /// Check if date is in the past
+  static bool isPast(DateTime? dateTime) {
+    if (dateTime == null) return false;
+    return dateTime.isBefore(DateTime.now());
+  }
+
+  /// Get local timezone offset
+  static String getTimezoneOffset() {
+    final offset = DateTime.now().timeZoneOffset;
+    final hours = offset.inHours;
+    final minutes = offset.inMinutes % 60;
+    final sign = hours >= 0 ? '+' : '-';
+    return '$sign${hours.abs().toString().padLeft(2, '0')}:${minutes.abs().toString().padLeft(2, '0')}';
+  }
+}
+
+
+===== lib/core/utils/validators.dart =====
+class Validators {
+  // Email validation
+  static String? validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Email es requerido';
+    }
+
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(value)) {
+      return 'Formato de email inválido';
+    }
+
+    return null;
+  }
+
+  // Phone validation
+  static String? validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return null; // Phone is usually optional
+    }
+
+    // Remove all non-digit characters
+    final digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
+
+    if (digitsOnly.length < 10) {
+      return 'Teléfono debe tener al menos 10 dígitos';
+    }
+
+    if (digitsOnly.length > 15) {
+      return 'Teléfono no puede tener más de 15 dígitos';
+    }
+
+    return null;
+  }
+
+  // Required field validation
+  static String? validateRequired(String? value, [String? fieldName]) {
+    if (value == null || value.trim().isEmpty) {
+      return '${fieldName ?? 'Campo'} es requerido';
+    }
+    return null;
+  }
+
+  // Password validation
+  static String? validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Contraseña es requerida';
+    }
+
+    if (value.length < 6) {
+      return 'Contraseña debe tener al menos 6 caracteres';
+    }
+
+    return null;
+  }
+
+  // Numeric validation
+  static String? validateNumeric(String? value, [String? fieldName]) {
+    if (value == null || value.isEmpty) {
+      return '${fieldName ?? 'Campo'} es requerido';
+    }
+
+    if (double.tryParse(value) == null) {
+      return '${fieldName ?? 'Campo'} debe ser un número válido';
+    }
+
+    return null;
+  }
+
+  // Positive number validation
+  static String? validatePositiveNumber(String? value, [String? fieldName]) {
+    final numericValidation = validateNumeric(value, fieldName);
+    if (numericValidation != null) return numericValidation;
+
+    final number = double.parse(value!);
+    if (number <= 0) {
+      return '${fieldName ?? 'Campo'} debe ser mayor que cero';
+    }
+
+    return null;
+  }
+
+  // Name validation
+  static String? validateName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Nombre es requerido';
+    }
+
+    if (value.trim().length < 2) {
+      return 'Nombre debe tener al menos 2 caracteres';
+    }
+
+    if (value.trim().length > 50) {
+      return 'Nombre no puede tener más de 50 caracteres';
+    }
+
+    // Check for valid characters (letters, spaces, apostrophes, hyphens)
+    final nameRegex = RegExp(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$");
+    if (!nameRegex.hasMatch(value.trim())) {
+      return 'Nombre contiene caracteres inválidos';
+    }
+
+    return null;
+  }
+
+  // Address validation
+  static String? validateAddress(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null; // Address is usually optional
+    }
+
+    if (value.trim().length < 10) {
+      return 'Dirección debe tener al menos 10 caracteres';
+    }
+
+    if (value.trim().length > 200) {
+      return 'Dirección no puede tener más de 200 caracteres';
+    }
+
+    return null;
+  }
+
+  // Coordinates validation
+  static String? validateLatitude(double? value) {
+    if (value == null) return 'Latitud es requerida';
+    if (value < -90 || value > 90) {
+      return 'Latitud debe estar entre -90 y 90 grados';
+    }
+    return null;
+  }
+
+  static String? validateLongitude(double? value) {
+    if (value == null) return 'Longitud es requerida';
+    if (value < -180 || value > 180) {
+      return 'Longitud debe estar entre -180 y 180 grados';
+    }
+    return null;
+  }
+
+  // Code validation (customer code, product SKU, etc.)
+  static String? validateCode(String? value, [String? fieldName]) {
+    if (value == null || value.isEmpty) {
+      return null; // Code is usually optional
+    }
+
+    if (value.length < 2) {
+      return '${fieldName ?? 'Código'} debe tener al menos 2 caracteres';
+    }
+
+    if (value.length > 20) {
+      return '${fieldName ?? 'Código'} no puede tener más de 20 caracteres';
+    }
+
+    // Allow alphanumeric and some special characters
+    final codeRegex = RegExp(r'^[a-zA-Z0-9\-_]+$');
+    if (!codeRegex.hasMatch(value)) {
+      return '${fieldName ?? 'Código'} solo puede contener letras, números, guiones y guiones bajos';
+    }
+
+    return null;
+  }
+
+  // Quantity validation
+  static String? validateQuantity(String? value) {
+    return validatePositiveNumber(value, 'Cantidad');
+  }
+
+  // Price validation
+  static String? validatePrice(String? value) {
+    return validatePositiveNumber(value, 'Precio');
+  }
+
+  // Notes validation
+  static String? validateNotes(String? value, {int maxLength = 500}) {
+    if (value == null || value.isEmpty) {
+      return null; // Notes are usually optional
+    }
+
+    if (value.length > maxLength) {
+      return 'Notas no pueden tener más de $maxLength caracteres';
+    }
+
+    return null;
+  }
+
+  // Date validation
+  static String? validateDate(DateTime? value, [String? fieldName]) {
+    if (value == null) {
+      return '${fieldName ?? 'Fecha'} es requerida';
+    }
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final valueDate = DateTime(value.year, value.month, value.day);
+
+    if (valueDate.isBefore(today)) {
+      return '${fieldName ?? 'Fecha'} no puede ser anterior a hoy';
+    }
+
+    return null;
+  }
+
+  // URL validation
+  static String? validateUrl(String? value) {
+    if (value == null || value.isEmpty) {
+      return null; // URL is usually optional
+    }
+
+    final urlRegex = RegExp(
+        r'^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$');
+
+    if (!urlRegex.hasMatch(value)) {
+      return 'Formato de URL inválido';
+    }
+
+    return null;
+  }
+
+  // Custom validation combiner
+  static String? validateMultiple(
+      String? value, List<String? Function(String?)> validators) {
+    for (final validator in validators) {
+      final result = validator(value);
+      if (result != null) return result;
+    }
+    return null;
+  }
+
+  // File size validation
+  static String? validateFileSize(int? fileSizeBytes, int maxSizeBytes) {
+    if (fileSizeBytes == null) return 'Tamaño de archivo no disponible';
+
+    if (fileSizeBytes > maxSizeBytes) {
+      final maxSizeMB = (maxSizeBytes / (1024 * 1024)).toStringAsFixed(1);
+      return 'Archivo debe ser menor a ${maxSizeMB}MB';
+    }
+
+    return null;
+  }
+
+  // Image file validation
+  static String? validateImageFile(String? fileName) {
+    if (fileName == null || fileName.isEmpty) {
+      return 'Nombre de archivo requerido';
+    }
+
+    final allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    final extension = fileName.split('.').last.toLowerCase();
+
+    if (!allowedExtensions.contains(extension)) {
+      return 'Formato de imagen no válido. Use: ${allowedExtensions.join(', ')}';
+    }
+
+    return null;
+  }
+
+  // Geofence radius validation
+  static String? validateGeofenceRadius(String? value) {
+    final numericValidation = validatePositiveNumber(value, 'Radio');
+    if (numericValidation != null) return numericValidation;
+
+    final radius = double.parse(value!);
+    if (radius < 5) {
+      return 'Radio mínimo es 5 metros';
+    }
+
+    if (radius > 1000) {
+      return 'Radio máximo es 1000 metros';
+    }
+
+    return null;
+  }
+}
+
+
+===== lib/core/utils/geoutils.dart =====
+import 'dart:math';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+class GeoUtils {
+  /// Calculate distance between two points in meters
+  static double calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
+  }
+
+  /// Check if a point is within a geofence
+  static bool isWithinGeofence(
+    double currentLat,
+    double currentLon,
+    double centerLat,
+    double centerLon,
+    double radiusMeters,
+  ) {
+    final distance =
+        calculateDistance(currentLat, currentLon, centerLat, centerLon);
+    return distance <= radiusMeters;
+  }
+
+  /// Calculate bearing between two points
+  static double calculateBearing(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    final lat1Rad = _degreesToRadians(lat1);
+    final lat2Rad = _degreesToRadians(lat2);
+    final deltaLonRad = _degreesToRadians(lon2 - lon1);
+
+    final y = sin(deltaLonRad) * cos(lat2Rad);
+    final x = cos(lat1Rad) * sin(lat2Rad) -
+        sin(lat1Rad) * cos(lat2Rad) * cos(deltaLonRad);
+
+    final bearingRad = atan2(y, x);
+    final bearingDeg = _radiansToDegrees(bearingRad);
+
+    return (bearingDeg + 360) % 360;
+  }
+
+  /// Get center point of multiple coordinates
+  static LatLng getCenterPoint(List<LatLng> coordinates) {
+    if (coordinates.isEmpty) {
+      throw ArgumentError('Coordinates list cannot be empty');
+    }
+
+    if (coordinates.length == 1) {
+      return coordinates.first;
+    }
+
+    double x = 0, y = 0, z = 0;
+
+    for (final coord in coordinates) {
+      final latRad = _degreesToRadians(coord.latitude);
+      final lonRad = _degreesToRadians(coord.longitude);
+
+      x += cos(latRad) * cos(lonRad);
+      y += cos(latRad) * sin(lonRad);
+      z += sin(latRad);
+    }
+
+    final total = coordinates.length;
+    x /= total;
+    y /= total;
+    z /= total;
+
+    final centralLonRad = atan2(y, x);
+    final centralSquareRoot = sqrt(x * x + y * y);
+    final centralLatRad = atan2(z, centralSquareRoot);
+
+    return LatLng(
+      _radiansToDegrees(centralLatRad),
+      _radiansToDegrees(centralLonRad),
+    );
+  }
+
+  /// Get bounds that contain all coordinates
+  static LatLngBounds getBounds(List<LatLng> coordinates) {
+    if (coordinates.isEmpty) {
+      throw ArgumentError('Coordinates list cannot be empty');
+    }
+
+    double minLat = coordinates.first.latitude;
+    double maxLat = coordinates.first.latitude;
+    double minLng = coordinates.first.longitude;
+    double maxLng = coordinates.first.longitude;
+
+    for (final coord in coordinates) {
+      minLat = min(minLat, coord.latitude);
+      maxLat = max(maxLat, coord.latitude);
+      minLng = min(minLng, coord.longitude);
+      maxLng = max(maxLng, coord.longitude);
+    }
+
+    return LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+  }
+
+  /// Calculate zoom level to fit bounds
+  static double calculateZoomLevel(
+      LatLngBounds bounds, double mapWidth, double mapHeight) {
+    const double padding = 50.0;
+
+    final double latRad = _degreesToRadians(
+        bounds.northeast.latitude - bounds.southwest.latitude);
+    final double lngRad = _degreesToRadians(
+        bounds.northeast.longitude - bounds.southwest.longitude);
+
+    final double latZoom =
+        _calculateZoomFromDistance(latRad, mapHeight - padding);
+    final double lngZoom =
+        _calculateZoomFromDistance(lngRad, mapWidth - padding);
+
+    return min(latZoom, lngZoom);
+  }
+
+  /// Format coordinates to string
+  static String formatCoordinates(double lat, double lng, {int precision = 6}) {
+    return '${lat.toStringAsFixed(precision)}, ${lng.toStringAsFixed(precision)}';
+  }
+
+  /// Parse coordinates from string
+  static LatLng? parseCoordinates(String coordString) {
+    try {
+      final parts = coordString.split(',');
+      if (parts.length != 2) return null;
+
+      final lat = double.parse(parts[0].trim());
+      final lng = double.parse(parts[1].trim());
+
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return LatLng(lat, lng);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Generate Google Maps URL
+  static String generateGoogleMapsUrl(double lat, double lng, {String? label}) {
+    final query = label != null ? '$lat,$lng($label)' : '$lat,$lng';
+    return 'https://www.google.com/maps/search/?api=1&query=$query';
+  }
+
+  /// Generate route URL between two points
+  static String generateRouteUrl(
+    double fromLat,
+    double fromLng,
+    double toLat,
+    double toLng,
+  ) {
+    return 'https://www.google.com/maps/dir/$fromLat,$fromLng/$toLat,$toLng';
+  }
+
+  /// Validate coordinates
+  static bool isValidCoordinate(double? lat, double? lng) {
+    if (lat == null || lng == null) return false;
+    return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+  }
+
+  /// Get accuracy level description
+  static String getAccuracyDescription(double? accuracy) {
+    if (accuracy == null) return 'Desconocida';
+    if (accuracy <= 5) return 'Excelente';
+    if (accuracy <= 10) return 'Buena';
+    if (accuracy <= 20) return 'Regular';
+    return 'Pobre';
+  }
+
+  /// Calculate estimated travel time (simple estimation)
+  static Duration estimateTravelTime(double distanceMeters,
+      {double speedKmh = 30}) {
+    final distanceKm = distanceMeters / 1000;
+    final timeHours = distanceKm / speedKmh;
+    return Duration(milliseconds: (timeHours * 3600 * 1000).round());
+  }
+
+  /// Check if coordinates are significantly different
+  static bool coordinatesChanged(
+      double? oldLat, double? oldLng, double? newLat, double? newLng,
+      {double thresholdMeters = 5.0}) {
+    if (oldLat == null || oldLng == null || newLat == null || newLng == null) {
+      return true;
+    }
+
+    final distance = calculateDistance(oldLat, oldLng, newLat, newLng);
+    return distance >= thresholdMeters;
+  }
+
+  // Private helper methods
+  static double _degreesToRadians(double degrees) {
+    return degrees * pi / 180;
+  }
+
+  static double _radiansToDegrees(double radians) {
+    return radians * 180 / pi;
+  }
+
+  static double _calculateZoomFromDistance(double distance, double dimension) {
+    return log(dimension / distance) / ln2;
+  }
+}
+
+
+===== lib/core/theme/palette.dart =====
+import 'package:flutter/material.dart';
+
+class AppPalette {
+  // Primary colors
+  static const Color primary = Color(0xFF1E88E5);
+  static const Color primaryDark = Color(0xFF1565C0);
+  static const Color primaryLight = Color(0xFF90CAF9);
+
+  // Secondary colors
+  static const Color secondary = Color(0xFF26A69A);
+  static const Color secondaryDark = Color(0xFF00695C);
+  static const Color secondaryLight = Color(0xFF80CBC4);
+
+  // Status colors
+  static const Color success = Color(0xFF4CAF50);
+  static const Color warning = Color(0xFFFF9800);
+  static const Color error = Color(0xFFE53935);
+  static const Color info = Color(0xFF2196F3);
+
+  // Neutral colors
+  static const Color background = Color(0xFFF5F5F5);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surfaceVariant = Color(0xFFF3F3F3);
+
+  // Text colors
+  static const Color textPrimary = Color(0xFF212121);
+  static const Color textSecondary = Color(0xFF757575);
+  static const Color textDisabled = Color(0xFFBDBDBD);
+
+  // Role colors
+  static const Color vendedor = Color(0xFF2196F3);
+  static const Color repartidor = Color(0xFF4CAF50);
+  static const Color supervisor = Color(0xFFFF9800);
+  static const Color admin = Color(0xFF9C27B0);
+}
+
+
+===== lib/core/theme/theme.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'palette.dart';
+
+class AppTheme {
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: AppPalette.primary,
+        brightness: Brightness.light,
+      ),
+      appBarTheme: const AppBarTheme(
+        elevation: 0,
+        centerTitle: true,
+        backgroundColor: AppPalette.primary,
+        foregroundColor: Colors.white,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppPalette.secondary,
+        foregroundColor: Colors.white,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppPalette.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      cardTheme: CardTheme(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        filled: true,
+        fillColor: AppPalette.surface,
+      ),
+    );
+  }
+
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: AppPalette.primary,
+        brightness: Brightness.dark,
+      ),
+      appBarTheme: const AppBarTheme(
+        elevation: 0,
+        centerTitle: true,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+      ),
+    );
+  }
+}
+
+
+===== lib/core/errors/exceptions.dart =====
+class AppException implements Exception {
+  final String message;
+  final String? code;
+  final dynamic details;
+
+  const AppException(this.message, {this.code, this.details});
+
+  @override
+  String toString() =>
+      'AppException: $message${code != null ? ' (Code: $code)' : ''}';
+}
+
+class NetworkException extends AppException {
+  const NetworkException(String message, {String? code, dynamic details})
+      : super(message, code: code, details: details);
+}
+
+class ServerException extends AppException {
+  const ServerException(String message, {String? code, dynamic details})
+      : super(message, code: code, details: details);
+}
+
+class CacheException extends AppException {
+  const CacheException(String message, {String? code, dynamic details})
+      : super(message, code: code, details: details);
+}
+
+class AuthException extends AppException {
+  const AuthException(String message, {String? code, dynamic details})
+      : super(message, code: code, details: details);
+}
+
+class LocationException extends AppException {
+  const LocationException(String message, {String? code, dynamic details})
+      : super(message, code: code, details: details);
+}
+
+class GeofenceException extends AppException {
+  const GeofenceException(String message, {String? code, dynamic details})
+      : super(message, code: code, details: details);
+}
+
+class ValidationException extends AppException {
+  const ValidationException(String message, {String? code, dynamic details})
+      : super(message, code: code, details: details);
+}
+
+class SyncException extends AppException {
+  const SyncException(String message, {String? code, dynamic details})
+      : super(message, code: code, details: details);
+}
+
+class StorageException extends AppException {
+  const StorageException(String message, {String? code, dynamic details})
+      : super(message, code: code, details: details);
+}
+
+
+===== lib/core/errors/failures.dart =====
+abstract class Failure {
+  final String message;
+  final String? code;
+
+  const Failure(this.message, {this.code});
+
+  @override
+  String toString() =>
+      'Failure: $message${code != null ? ' (Code: $code)' : ''}';
+}
+
+class NetworkFailure extends Failure {
+  const NetworkFailure(String message, {String? code})
+      : super(message, code: code);
+}
+
+class ServerFailure extends Failure {
+  const ServerFailure(String message, {String? code})
+      : super(message, code: code);
+}
+
+class CacheFailure extends Failure {
+  const CacheFailure(String message, {String? code})
+      : super(message, code: code);
+}
+
+class AuthFailure extends Failure {
+  const AuthFailure(String message, {String? code})
+      : super(message, code: code);
+}
+
+class LocationFailure extends Failure {
+  const LocationFailure(String message, {String? code})
+      : super(message, code: code);
+}
+
+class GeofenceFailure extends Failure {
+  const GeofenceFailure(String message, {String? code})
+      : super(message, code: code);
+}
+
+class ValidationFailure extends Failure {
+  const ValidationFailure(String message, {String? code})
+      : super(message, code: code);
+}
+
+class SyncFailure extends Failure {
+  const SyncFailure(String message, {String? code})
+      : super(message, code: code);
+}
+
+class StorageFailure extends Failure {
+  const StorageFailure(String message, {String? code})
+      : super(message, code: code);
+}
+
+
+===== lib/core/widgets/app_signature_pad.dart =====
+import 'package:flutter/material.dart';
+import 'package:signature/signature.dart';
+import '../theme/palette.dart';
+
+class AppSignaturePad extends StatefulWidget {
+  final SignatureController controller;
+  final String? title;
+  final double height;
+
+  const AppSignaturePad({
+    super.key,
+    required this.controller,
+    this.title,
+    this.height = 200,
+  });
+
+  @override
+  State<AppSignaturePad> createState() => _AppSignaturePadState();
+}
+
+class _AppSignaturePadState extends State<AppSignaturePad> {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.title != null) ...[
+          Text(
+            widget.title!,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Container(
+          height: widget.height,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Signature(
+            controller: widget.controller,
+            backgroundColor: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _clearSignature,
+                icon: const Icon(Icons.clear),
+                label: const Text('Limpiar'),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _exportSignature,
+                icon: const Icon(Icons.save),
+                label: const Text('Guardar'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppPalette.success,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _clearSignature() {
+    widget.controller.clear();
+  }
+
+  Future<void> _exportSignature() async {
+    if (widget.controller.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor, dibuja una firma antes de guardar'),
+          backgroundColor: AppPalette.warning,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final signature = await widget.controller.toPngBytes();
+      if (signature != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Firma guardada exitosamente'),
+            backgroundColor: AppPalette.success,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al guardar firma: $e'),
+          backgroundColor: AppPalette.error,
+        ),
+      );
+    }
+  }
+}
+
+
+===== lib/core/widgets/app_photo_viewer.dart =====
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:photo_view/photo_view.dart';
+import 'package:photo_view/photo_view_gallery.dart';
+
+class AppPhotoViewer extends StatelessWidget {
+  final List<File> photos;
+  final int initialIndex;
+
+  const AppPhotoViewer({
+    super.key,
+    required this.photos,
+    this.initialIndex = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text('${initialIndex + 1} de ${photos.length}'),
+      ),
+      body: Container(
+        color: Colors.black,
+        child: PhotoViewGallery.builder(
+          itemCount: photos.length,
+          builder: (context, index) {
+            return PhotoViewGalleryPageOptions(
+              imageProvider: FileImage(photos[index]),
+              heroAttributes: PhotoViewHeroAttributes(tag: photos[index].path),
+            );
+          },
+          scrollPhysics: const BouncingScrollPhysics(),
+          backgroundDecoration: const BoxDecoration(color: Colors.black),
+          pageController: PageController(initialPage: initialIndex),
+        ),
+      ),
+    );
+  }
+}
+
+
+===== lib/core/widgets/app_scaffold.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import '../theme/palette.dart';
+import '../../features/auth/bloc/auth_cubit.dart';
+import '../../data/models/auth/user_profile.dart';
+
+class AppScaffold extends StatelessWidget {
+  final Widget child;
+
+  const AppScaffold({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AuthCubit, AuthState>(
+      builder: (context, state) {
+        return state.maybeWhen(
+          authenticated: (user) => Scaffold(
+            body: child,
+            bottomNavigationBar: _buildBottomNavigation(context, user),
+            drawer: _buildDrawer(context, user),
+          ),
+          orElse: () => child,
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomNavigation(BuildContext context, UserProfile user) {
+    final currentLocation = GoRouterState.of(context).matchedLocation;
+
+    // Different navigation based on role
+    switch (user.role) {
+      case UserRole.vendedor:
+        return _buildVendedorNavigation(context, currentLocation);
+      case UserRole.repartidor:
+        return _buildRepartidorNavigation(context, currentLocation);
+      case UserRole.supervisor:
+        return _buildSupervisorNavigation(context, currentLocation);
+      case UserRole.admin:
+        return _buildAdminNavigation(context, currentLocation);
+    }
+  }
+
+  Widget _buildVendedorNavigation(
+      BuildContext context, String currentLocation) {
+    return BottomNavigationBar(
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: AppPalette.primary,
+      unselectedItemColor: AppPalette.textSecondary,
+      currentIndex: _getNavigationIndex(currentLocation, [
+        '/dashboard',
+        '/customers',
+        '/orders',
+        '/payments',
+      ]),
+      onTap: (index) => _navigateToIndex(context, index, [
+        '/dashboard',
+        '/customers',
+        '/orders',
+        '/payments',
+      ]),
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.map),
+          label: 'Mapa',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.people),
+          label: 'Clientes',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.shopping_cart),
+          label: 'Pedidos',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.payment),
+          label: 'Cobros',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRepartidorNavigation(
+      BuildContext context, String currentLocation) {
+    return BottomNavigationBar(
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: AppPalette.repartidor,
+      unselectedItemColor: AppPalette.textSecondary,
+      currentIndex: _getNavigationIndex(currentLocation, [
+        '/dashboard',
+        '/deliveries',
+        '/customers',
+      ]),
+      onTap: (index) => _navigateToIndex(context, index, [
+        '/dashboard',
+        '/deliveries',
+        '/customers',
+      ]),
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.map),
+          label: 'Ruta',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.local_shipping),
+          label: 'Entregas',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.people),
+          label: 'Clientes',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSupervisorNavigation(
+      BuildContext context, String currentLocation) {
+    return BottomNavigationBar(
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: AppPalette.supervisor,
+      unselectedItemColor: AppPalette.textSecondary,
+      currentIndex: _getNavigationIndex(currentLocation, [
+        '/supervisor',
+        '/dashboard',
+        '/customers',
+        '/orders',
+      ]),
+      onTap: (index) => _navigateToIndex(context, index, [
+        '/supervisor',
+        '/dashboard',
+        '/customers',
+        '/orders',
+      ]),
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.dashboard),
+          label: 'Panel',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.map),
+          label: 'Campo',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.people),
+          label: 'Clientes',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.analytics),
+          label: 'Reportes',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdminNavigation(BuildContext context, String currentLocation) {
+    return BottomNavigationBar(
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: AppPalette.admin,
+      unselectedItemColor: AppPalette.textSecondary,
+      currentIndex: _getNavigationIndex(currentLocation, [
+        '/dashboard',
+        '/customers',
+        '/supervisor',
+      ]),
+      onTap: (index) => _navigateToIndex(context, index, [
+        '/dashboard',
+        '/customers',
+        '/supervisor',
+      ]),
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.map),
+          label: 'Mapa',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.people),
+          label: 'Clientes',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.admin_panel_settings),
+          label: 'Admin',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context, UserProfile user) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: const BoxDecoration(
+              color: AppPalette.primary,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    user.fullName?.isNotEmpty == true
+                        ? user.fullName![0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppPalette.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  user.fullName ?? 'Usuario',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  _getRoleLabel(user.role),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Navigation items based on role
+          ..._getDrawerItems(context, user.role),
+
+          const Divider(),
+
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Configuración'),
+            onTap: () {
+              Navigator.pop(context);
+              // TODO: Navigate to settings
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.help),
+            title: const Text('Ayuda'),
+            onTap: () {
+              Navigator.pop(context);
+              // TODO: Navigate to help
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout, color: AppPalette.error),
+            title: const Text('Cerrar Sesión',
+                style: TextStyle(color: AppPalette.error)),
+            onTap: () => _signOut(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _getDrawerItems(BuildContext context, UserRole role) {
+    final commonItems = [
+      ListTile(
+        leading: const Icon(Icons.map),
+        title: const Text('Mapa'),
+        onTap: () {
+          Navigator.pop(context);
+          context.go('/dashboard');
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.people),
+        title: const Text('Clientes'),
+        onTap: () {
+          Navigator.pop(context);
+          context.go('/customers');
+        },
+      ),
+    ];
+
+    final roleSpecificItems = <Widget>[];
+
+    switch (role) {
+      case UserRole.vendedor:
+        roleSpecificItems.addAll([
+          ListTile(
+            leading: const Icon(Icons.shopping_cart),
+            title: const Text('Pedidos'),
+            onTap: () {
+              Navigator.pop(context);
+              // TODO: Navigate to orders
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.payment),
+            title: const Text('Cobros'),
+            onTap: () {
+              Navigator.pop(context);
+              context.go('/payments');
+            },
+          ),
+        ]);
+        break;
+      case UserRole.repartidor:
+        roleSpecificItems.addAll([
+          ListTile(
+            leading: const Icon(Icons.local_shipping),
+            title: const Text('Entregas'),
+            onTap: () {
+              Navigator.pop(context);
+              context.go('/deliveries');
+            },
+          ),
+        ]);
+        break;
+      case UserRole.supervisor:
+      case UserRole.admin:
+        roleSpecificItems.addAll([
+          ListTile(
+            leading: const Icon(Icons.dashboard),
+            title: const Text('Panel de Control'),
+            onTap: () {
+              Navigator.pop(context);
+              context.go('/supervisor');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.analytics),
+            title: const Text('Reportes'),
+            onTap: () {
+              Navigator.pop(context);
+              // TODO: Navigate to reports
+            },
+          ),
+        ]);
+        break;
+    }
+
+    return [...commonItems, ...roleSpecificItems];
+  }
+
+  static int _getNavigationIndex(String currentLocation, List<String> routes) {
+    for (int i = 0; i < routes.length; i++) {
+      if (currentLocation.startsWith(routes[i])) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  static void _navigateToIndex(
+      BuildContext context, int index, List<String> routes) {
+    if (index < routes.length) {
+      context.go(routes[index]);
+    }
+  }
+
+  static String _getRoleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Administrador';
+      case UserRole.supervisor:
+        return 'Supervisor';
+      case UserRole.vendedor:
+        return 'Vendedor';
+      case UserRole.repartidor:
+        return 'Repartidor';
+    }
+  }
+
+  static void _signOut(BuildContext context) {
+    Navigator.pop(context);
+    context.read<AuthCubit>().signOut();
+  }
+}
+
+
+===== lib/core/widgets/app_loading.dart =====
+import 'package:flutter/material.dart';
+import '../theme/palette.dart';
+
+class AppLoading extends StatelessWidget {
+  final String? message;
+
+  const AppLoading({super.key, this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppPalette.primary),
+          ),
+          if (message != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              message!,
+              style: const TextStyle(
+                fontSize: 16,
+                color: AppPalette.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+
+===== lib/config/app_constants.dart =====
+class AppConstants {
+  static const String appName = 'Arsenal Sell App';
+  static const String version = '1.0.0';
+
+  // Geofence
+  static const double defaultGeofenceRadius = 10.0; // meters
+  static const double maxGeofenceRadius = 100.0;
+
+  // Location
+  static const double locationAccuracyThreshold = 10.0; // meters
+  static const int locationUpdateInterval = 30; // seconds
+  static const int backgroundLocationInterval = 60; // seconds
+
+  // Sync
+  static const int syncBatchSize = 50;
+  static const int maxRetryAttempts = 3;
+  static const Duration syncInterval = Duration(minutes: 5);
+
+  // UI
+  static const double defaultPadding = 16.0;
+  static const double defaultRadius = 8.0;
+
+  // File Upload
+  static const int maxPhotoSize = 5 * 1024 * 1024; // 5MB
+  static const List<String> allowedImageTypes = ['jpg', 'jpeg', 'png'];
+}
+
+
+===== lib/config/logger.dart =====
+import 'package:logger/logger.dart';
+
+final logger = Logger(
+  printer: PrettyPrinter(
+    methodCount: 2,
+    errorMethodCount: 8,
+    lineLength: 120,
+    colors: true,
+    printEmojis: true,
+    printTime: true,
+  ),
+);
+
+
+===== lib/config/env.dart =====
+class Env {
+  static const String supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'YOUR_SUPABASE_URL',
+  );
+
+  static const String supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue: 'YOUR_SUPABASE_ANON_KEY',
+  );
+
+  static const String googleMapsApiKey =
+      'AIzaSyA5X9eJe3Ih4Yfo4txSQzScZmVZpoO8mf8';
+
+  static const String resendApiKey = String.fromEnvironment(
+    'RESEND_API_KEY',
+    defaultValue: 'YOUR_RESEND_API_KEY',
+  );
+}
+
+
+===== lib/features/customers/pages/customers_list_page.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/palette.dart';
+import '../../../data/models/customers/customer.dart';
+import '../bloc/customers_cubit.dart';
+
+class CustomersListPage extends StatefulWidget {
+  const CustomersListPage({super.key});
+
+  @override
+  State<CustomersListPage> createState() => _CustomersListPageState();
+}
+
+class _CustomersListPageState extends State<CustomersListPage> {
+  final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<CustomersCubit>().loadCustomers();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Clientes'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.sync),
+            onPressed: () =>
+                context.read<CustomersCubit>().loadCustomers(forceSync: true),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                hintText: 'Buscar clientes...',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) {
+                context.read<CustomersCubit>().searchCustomers(value);
+              },
+            ),
+          ),
+
+          // Customer list
+          Expanded(
+            child: BlocBuilder<CustomersCubit, CustomersState>(
+              builder: (context, state) {
+                return state.when(
+                  initial: () =>
+                      const Center(child: Text('Cargando clientes...')),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  loaded: (customers) {
+                    if (customers.isEmpty) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.people_outline,
+                              size: 64,
+                              color: AppPalette.textSecondary,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'No hay clientes',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: AppPalette.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return RefreshIndicator(
+                      onRefresh: () => context
+                          .read<CustomersCubit>()
+                          .loadCustomers(forceSync: true),
+                      child: ListView.builder(
+                        itemCount: customers.length,
+                        itemBuilder: (context, index) {
+                          final customer = customers[index];
+                          return CustomerListTile(
+                            customer: customer,
+                            onTap: () =>
+                                context.push('/customers/${customer.id}'),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                  error: (message) => Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: AppPalette.error,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          message,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () =>
+                              context.read<CustomersCubit>().loadCustomers(),
+                          child: const Text('Reintentar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/customers/new'),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class CustomerListTile extends StatelessWidget {
+  final Customer customer;
+  final VoidCallback onTap;
+
+  const CustomerListTile({
+    super.key,
+    required this.customer,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: AppPalette.primary,
+          child: Text(
+            customer.name.isNotEmpty ? customer.name[0].toUpperCase() : '?',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        title: Text(
+          customer.name,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (customer.code != null) ...[
+              Text('Código: ${customer.code}'),
+              const SizedBox(height: 2),
+            ],
+            if (customer.address != null) ...[
+              Text(
+                customer.address!,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              customer.latitude != null && customer.longitude != null
+                  ? Icons.location_on
+                  : Icons.location_off,
+              color: customer.latitude != null && customer.longitude != null
+                  ? AppPalette.success
+                  : AppPalette.textDisabled,
+            ),
+            const SizedBox(height: 4),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+
+===== lib/features/customers/pages/customer_detail_page.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../core/theme/palette.dart';
+import '../../../data/models/customers/customer.dart';
+import '../../../data/models/visits/visit.dart';
+import '../bloc/customers_cubit.dart';
+import '../../visits/bloc/visits_cubit.dart';
+
+class CustomerDetailPage extends StatefulWidget {
+  final String customerId;
+
+  const CustomerDetailPage({
+    super.key,
+    required this.customerId,
+  });
+
+  @override
+  State<CustomerDetailPage> createState() => _CustomerDetailPageState();
+}
+
+class _CustomerDetailPageState extends State<CustomerDetailPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  Customer? _customer;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _loadCustomer();
+    _loadVisitHistory();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _loadCustomer() {
+    // TODO: Load customer details from repository
+    _customer = Customer(
+      id: widget.customerId,
+      companyId: 'company_id',
+      name: 'Cliente Ejemplo',
+      email: 'cliente@ejemplo.com',
+      phone: '+1234567890',
+      address: 'Calle Ejemplo 123, Ciudad, País',
+      latitude: 19.4326,
+      longitude: -99.1332,
+    );
+  }
+
+  void _loadVisitHistory() {
+    context.read<VisitsCubit>().loadVisitHistory(widget.customerId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_customer == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_customer!.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () =>
+                context.push('/customers/edit/${widget.customerId}'),
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Info', icon: Icon(Icons.info)),
+            Tab(text: 'Visitas', icon: Icon(Icons.location_on)),
+            Tab(text: 'Pedidos', icon: Icon(Icons.shopping_cart)),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildInfoTab(),
+          _buildVisitsTab(),
+          _buildOrdersTab(),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showVisitOptions(context),
+        icon: const Icon(Icons.add_location),
+        label: const Text('Nueva Visita'),
+      ),
+    );
+  }
+
+  Widget _buildInfoTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Contact info card
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Información de Contacto',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppPalette.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_customer!.email != null) ...[
+                    _buildInfoRow(
+                      Icons.email,
+                      'Email',
+                      _customer!.email!,
+                      onTap: () => _launchEmail(_customer!.email!),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_customer!.phone != null) ...[
+                    _buildInfoRow(
+                      Icons.phone,
+                      'Teléfono',
+                      _customer!.phone!,
+                      onTap: () => _launchPhone(_customer!.phone!),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_customer!.address != null) ...[
+                    _buildInfoRow(
+                      Icons.location_on,
+                      'Dirección',
+                      _customer!.address!,
+                      onTap: () => _launchMaps(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Stats card
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Estadísticas',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppPalette.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child:
+                            _buildStatItem('Visitas', '15', Icons.location_on),
+                      ),
+                      Expanded(
+                        child:
+                            _buildStatItem('Pedidos', '8', Icons.shopping_cart),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatItem(
+                            'Última Visita', '2 días', Icons.schedule),
+                      ),
+                      Expanded(
+                        child: _buildStatItem(
+                            'Total Ventas', '\$2,450', Icons.attach_money),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVisitsTab() {
+    return BlocBuilder<VisitsCubit, VisitsState>(
+      builder: (context, state) {
+        return state.when(
+          initial: () => const Center(child: Text('Cargando...')),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          history: (visits) {
+            if (visits.isEmpty) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.location_off,
+                      size: 64,
+                      color: AppPalette.textSecondary,
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      'No hay visitas registradas',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: AppPalette.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: visits.length,
+              itemBuilder: (context, index) {
+                final visit = visits[index];
+                return VisitListTile(visit: visit);
+              },
+            );
+          },
+          orElse: () => const Center(child: Text('Error cargando visitas')),
+        );
+      },
+    );
+  }
+
+  Widget _buildOrdersTab() {
+    return const Center(
+      child: Text('Historial de pedidos - TODO'),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value,
+      {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: AppPalette.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppPalette.textSecondary,
+                    ),
+                  ),
+                  Text(
+                    value,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+            if (onTap != null)
+              const Icon(Icons.chevron_right, color: AppPalette.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppPalette.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: AppPalette.primary, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppPalette.primary,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppPalette.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showVisitOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => VisitOptionsSheet(customer: _customer!),
+    );
+  }
+
+  void _launchEmail(String email) async {
+    final uri = Uri.parse('mailto:$email');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  void _launchPhone(String phone) async {
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  void _launchMaps() async {
+    if (_customer!.latitude != null && _customer!.longitude != null) {
+      final uri = Uri.parse(
+          'https://www.google.com/maps/search/?api=1&query=${_customer!.latitude},${_customer!.longitude}');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      }
+    }
+  }
+}
+
+class VisitListTile extends StatelessWidget {
+  final Visit visit;
+
+  const VisitListTile({super.key, required this.visit});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: _getPurposeColor(visit.purpose),
+          child: Icon(
+            _getPurposeIcon(visit.purpose),
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+        title: Text(_getPurposeLabel(visit.purpose)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (visit.startedAt != null)
+              Text('Inicio: ${_formatDateTime(visit.startedAt!)}'),
+            if (visit.finishedAt != null)
+              Text('Fin: ${_formatDateTime(visit.finishedAt!)}'),
+            if (visit.notes?.isNotEmpty == true) Text('Notas: ${visit.notes}'),
+          ],
+        ),
+        trailing: Icon(
+          visit.finishedAt != null ? Icons.check_circle : Icons.schedule,
+          color: visit.finishedAt != null
+              ? AppPalette.success
+              : AppPalette.warning,
+        ),
+      ),
+    );
+  }
+
+  Color _getPurposeColor(VisitPurpose purpose) {
+    switch (purpose) {
+      case VisitPurpose.venta:
+        return AppPalette.success;
+      case VisitPurpose.cobro:
+        return AppPalette.warning;
+      case VisitPurpose.entrega:
+        return AppPalette.info;
+      case VisitPurpose.auditoria:
+        return AppPalette.primary;
+      case VisitPurpose.devolucion:
+        return AppPalette.error;
+      default:
+        return AppPalette.textSecondary;
+    }
+  }
+
+  IconData _getPurposeIcon(VisitPurpose purpose) {
+    switch (purpose) {
+      case VisitPurpose.venta:
+        return Icons.shopping_cart;
+      case VisitPurpose.cobro:
+        return Icons.payment;
+      case VisitPurpose.entrega:
+        return Icons.local_shipping;
+      case VisitPurpose.auditoria:
+        return Icons.assignment;
+      case VisitPurpose.devolucion:
+        return Icons.keyboard_return;
+      default:
+        return Icons.location_on;
+    }
+  }
+
+  String _getPurposeLabel(VisitPurpose purpose) {
+    switch (purpose) {
+      case VisitPurpose.venta:
+        return 'Venta';
+      case VisitPurpose.cobro:
+        return 'Cobro';
+      case VisitPurpose.entrega:
+        return 'Entrega';
+      case VisitPurpose.visita:
+        return 'Visita General';
+      case VisitPurpose.auditoria:
+        return 'Auditoría';
+      case VisitPurpose.devolucion:
+        return 'Devolución';
+      case VisitPurpose.otro:
+        return 'Otro';
+    }
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class VisitOptionsSheet extends StatelessWidget {
+  final Customer customer;
+
+  const VisitOptionsSheet({super.key, required this.customer});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Seleccionar tipo de visita',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          GridView.count(
+            shrinkWrap: true,
+            crossAxisCount: 2,
+            childAspectRatio: 2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            children: [
+              _VisitOptionTile(
+                icon: Icons.visibility,
+                label: 'Visita General',
+                color: AppPalette.info,
+                onTap: () => _startVisit(context, VisitPurpose.visita),
+              ),
+              _VisitOptionTile(
+                icon: Icons.shopping_cart,
+                label: 'Venta',
+                color: AppPalette.success,
+                onTap: () => _startVisit(context, VisitPurpose.venta),
+              ),
+              _VisitOptionTile(
+                icon: Icons.payment,
+                label: 'Cobro',
+                color: AppPalette.warning,
+                onTap: () => _startVisit(context, VisitPurpose.cobro),
+              ),
+              _VisitOptionTile(
+                icon: Icons.local_shipping,
+                label: 'Entrega',
+                color: AppPalette.primary,
+                onTap: () => _startVisit(context, VisitPurpose.entrega),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _startVisit(BuildContext context, VisitPurpose purpose) {
+    Navigator.of(context).pop();
+    context.push('/visit/checkin/${customer.id}?purpose=${purpose.name}');
+  }
+}
+
+class _VisitOptionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _VisitOptionTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+===== lib/features/customers/pages/customer_form_page.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../../core/theme/palette.dart';
+import '../../../data/models/customers/customer.dart';
+import '../../../services/location/location_service.dart';
+import '../bloc/customers_cubit.dart';
+
+class CustomerFormPage extends StatefulWidget {
+  final String? customerId;
+
+  const CustomerFormPage({
+    super.key,
+    this.customerId,
+  });
+
+  @override
+  State<CustomerFormPage> createState() => _CustomerFormPageState();
+}
+
+class _CustomerFormPageState extends State<CustomerFormPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _codeController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+
+  bool _isLocationSet = false;
+  double? _latitude;
+  double? _longitude;
+  bool _isLoadingLocation = false;
+
+  bool get _isEditing => widget.customerId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditing) {
+      _loadCustomer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _codeController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  void _loadCustomer() {
+    // TODO: Load customer data for editing
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Editar Cliente' : 'Nuevo Cliente'),
+        actions: [
+          TextButton(
+            onPressed: _saveCustomer,
+            child: const Text(
+              'Guardar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+      body: BlocConsumer<CustomersCubit, CustomersState>(
+        listener: (context, state) {
+          state.whenOrNull(
+            loaded: (customers) {
+              context.pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                      _isEditing ? 'Cliente actualizado' : 'Cliente creado'),
+                  backgroundColor: AppPalette.success,
+                ),
+              );
+            },
+            error: (message) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(message),
+                  backgroundColor: AppPalette.error,
+                ),
+              );
+            },
+          );
+        },
+        builder: (context, state) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Basic info section
+                  _buildSection(
+                    'Información Básica',
+                    [
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nombre *',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value?.isEmpty ?? true) {
+                            return 'Nombre es requerido';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _codeController,
+                        decoration: const InputDecoration(
+                          labelText: 'Código',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Contact info section
+                  _buildSection(
+                    'Información de Contacto',
+                    [
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value?.isNotEmpty == true) {
+                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                .hasMatch(value!)) {
+                              return 'Email inválido';
+                            }
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Teléfono',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Address section
+                  _buildSection(
+                    'Dirección y Ubicación',
+                    [
+                      TextFormField(
+                        controller: _addressController,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'Dirección',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Location section
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: _isLocationSet
+                              ? AppPalette.success.withOpacity(0.1)
+                              : AppPalette.warning.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _isLocationSet
+                                ? AppPalette.success
+                                : AppPalette.warning,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  _isLocationSet
+                                      ? Icons.location_on
+                                      : Icons.location_off,
+                                  color: _isLocationSet
+                                      ? AppPalette.success
+                                      : AppPalette.warning,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _isLocationSet
+                                      ? 'Ubicación configurada'
+                                      : 'Ubicación no configurada',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    color: _isLocationSet
+                                        ? AppPalette.success
+                                        : AppPalette.warning,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_isLocationSet) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Lat: ${_latitude?.toStringAsFixed(6)}\nLng: ${_longitude?.toStringAsFixed(6)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppPalette.textSecondary,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _isLoadingLocation
+                                    ? null
+                                    : _getCurrentLocation,
+                                icon: _isLoadingLocation
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.my_location),
+                                label: Text(_isLoadingLocation
+                                    ? 'Obteniendo...'
+                                    : 'Obtener Ubicación Actual'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppPalette.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Save button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: state.maybeWhen(
+                        loading: () => null,
+                        orElse: () => _saveCustomer,
+                      ),
+                      child: state.maybeWhen(
+                        loading: () => const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        orElse: () => Text(
+                          _isEditing ? 'Actualizar Cliente' : 'Crear Cliente',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppPalette.primary,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...children,
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    try {
+      final position = await LocationService().getCurrentLocation();
+      if (position != null) {
+        setState(() {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
+          _isLocationSet = true;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ubicación obtenida exitosamente'),
+            backgroundColor: AppPalette.success,
+          ),
+        );
+      } else {
+        throw Exception('No se pudo obtener la ubicación');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al obtener ubicación: $e'),
+          backgroundColor: AppPalette.error,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoadingLocation = false;
+      });
+    }
+  }
+
+  void _saveCustomer() {
+    if (_formKey.currentState?.validate() ?? false) {
+      final customer = Customer(
+        id: widget.customerId ??
+            DateTime.now().millisecondsSinceEpoch.toString(),
+        companyId: 'current_company_id', // TODO: Get from auth
+        code: _codeController.text.isNotEmpty ? _codeController.text : null,
+        name: _nameController.text,
+        email: _emailController.text.isNotEmpty ? _emailController.text : null,
+        phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
+        address:
+            _addressController.text.isNotEmpty ? _addressController.text : null,
+        latitude: _latitude,
+        longitude: _longitude,
+      );
+
+      context.read<CustomersCubit>().createCustomer(customer);
+    }
+  }
+}
+
+
+===== lib/features/customers/bloc/customers_cubit.dart =====
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import '../../../data/models/customers/customer.dart';
+import '../../../data/repositories/customers_repository.dart';
+import '../../../config/logger.dart';
+
+part 'customers_state.dart';
+part 'customers_cubit.freezed.dart';
+
+class CustomersCubit extends Cubit<CustomersState> {
+  final CustomersRepository _repository;
+
+  CustomersCubit(this._repository) : super(const CustomersState.initial());
+
+  Future<void> loadCustomers({bool forceSync = false}) async {
+    emit(const CustomersState.loading());
+
+    try {
+      final customers = await _repository.getCustomers(forceSync: forceSync);
+      emit(CustomersState.loaded(customers));
+    } catch (e) {
+      logger.e('Load customers error: $e');
+      emit(CustomersState.error(e.toString()));
+    }
+  }
+
+  Future<void> createCustomer(Customer customer) async {
+    try {
+      final currentState = state;
+      if (currentState is CustomersLoaded) {
+        emit(const CustomersState.loading());
+
+        final newCustomer = await _repository.createCustomer(customer);
+        final updatedCustomers = [...currentState.customers, newCustomer];
+
+        emit(CustomersState.loaded(updatedCustomers));
+      }
+    } catch (e) {
+      logger.e('Create customer error: $e');
+      emit(CustomersState.error(e.toString()));
+    }
+  }
+
+  Future<void> searchCustomers(String query) async {
+    try {
+      final currentState = state;
+      if (currentState is CustomersLoaded) {
+        final filteredCustomers = currentState.customers
+            .where((customer) =>
+                customer.name.toLowerCase().contains(query.toLowerCase()) ||
+                (customer.code?.toLowerCase().contains(query.toLowerCase()) ??
+                    false) ||
+                (customer.email?.toLowerCase().contains(query.toLowerCase()) ??
+                    false))
+            .toList();
+
+        emit(CustomersState.loaded(filteredCustomers));
+      }
+    } catch (e) {
+      logger.e('Search customers error: $e');
+    }
+  }
+}
+
+@freezed
+class CustomersState with _$CustomersState {
+  const factory CustomersState.initial() = _Initial;
+  const factory CustomersState.loading() = _Loading;
+  const factory CustomersState.loaded(List<Customer> customers) =
+      CustomersLoaded;
+  const factory CustomersState.error(String message) = _Error;
+}
+
+
+===== lib/features/payments/pages/payments_page.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/theme/palette.dart';
+import '../../../data/models/customers/customer.dart';
+import '../bloc/payments_cubit.dart';
+
+class PaymentsPage extends StatefulWidget {
+  const PaymentsPage({super.key});
+
+  @override
+  State<PaymentsPage> createState() => _PaymentsPageState();
+}
+
+class _PaymentsPageState extends State<PaymentsPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    context.read<PaymentsCubit>().loadPayments();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Gestión de Cobros'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Pendientes', icon: Icon(Icons.schedule)),
+            Tab(text: 'Completados', icon: Icon(Icons.check_circle)),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildPendingPayments(),
+          _buildCompletedPayments(),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showNewPaymentForm(),
+        icon: const Icon(Icons.add),
+        label: const Text('Nuevo Cobro'),
+      ),
+    );
+  }
+
+  Widget _buildPendingPayments() {
+    return BlocBuilder<PaymentsCubit, PaymentsState>(
+      builder: (context, state) {
+        return state.when(
+          initial: () => const Center(child: Text('Cargando...')),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          loaded: (payments) {
+            final pendingPayments =
+                payments.where((p) => p.status == 'PENDING').toList();
+
+            if (pendingPayments.isEmpty) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.payment_outlined,
+                      size: 64,
+                      color: AppPalette.textSecondary,
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      'No hay cobros pendientes',
+                      style: TextStyle(
+                        fontSize: 18,
+  

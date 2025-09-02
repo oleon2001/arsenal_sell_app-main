@@ -1,0 +1,3182 @@
+ext()();
+  TextColumn get productId => text()();
+  RealColumn get qty => real()();
+  RealColumn get price => real()();
+  RealColumn get discount => real().withDefault(const Constant(0.0))();
+  RealColumn get total => real()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('TrackingEntity')
+class TrackingLocations extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get companyId => text()();
+  TextColumn get userId => text()();
+  DateTimeColumn get at => dateTime()();
+  RealColumn get latitude => real()();
+  RealColumn get longitude => real()();
+  RealColumn get speedMs => real().nullable()();
+  RealColumn get accuracyM => real().nullable()();
+  BoolColumn get needsSync => boolean().withDefault(const Constant(false))();
+}
+
+
+===== lib/data/local/drift/db.dart =====
+import 'dart:io';
+import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart';
+import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
+
+import 'tables.dart';
+
+part 'db.g.dart';
+
+@DriftDatabase(tables: [
+  Customers,
+  Visits,
+  Products,
+  Orders,
+  OrderItems,
+  TrackingLocations,
+])
+class DatabaseHelper extends _$DatabaseHelper {
+  DatabaseHelper._internal() : super(_openConnection());
+
+  static final DatabaseHelper _instance = DatabaseHelper._internal();
+  static DatabaseHelper get instance => _instance;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (Migrator m) async {
+          await m.createAll();
+
+          // Create indexes
+          await customStatement('''
+        CREATE INDEX IF NOT EXISTS customers_company_idx 
+        ON customers(company_id);
+      ''');
+
+          await customStatement('''
+        CREATE INDEX IF NOT EXISTS visits_customer_idx 
+        ON visits(customer_id, started_at DESC);
+      ''');
+
+          await customStatement('''
+        CREATE INDEX IF NOT EXISTS tracking_user_time_idx 
+        ON tracking_locations(user_id, at DESC);
+      ''');
+        },
+        beforeOpen: (details) async {
+          if (Platform.isAndroid) {
+            await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
+          }
+
+          // Enable foreign keys
+          await customStatement('PRAGMA foreign_keys = ON');
+        },
+      );
+
+  // Customers
+  Future<List<CustomerEntity>> getAllCustomers() => select(customers).get();
+
+  Future<CustomerEntity?> getCustomerById(String id) =>
+      (select(customers)..where((c) => c.id.equals(id))).getSingleOrNull();
+
+  Future<void> insertCustomer(CustomerEntity customer) =>
+      into(customers).insertOnConflictUpdate(customer);
+
+  Future<void> insertCustomers(List<CustomerEntity> customerList) =>
+      batch((batch) {
+        batch.insertAllOnConflictUpdate(customers, customerList);
+      });
+
+  // Visits
+  Future<List<VisitEntity>> getVisitsByCustomer(String customerId) =>
+      (select(visits)..where((v) => v.customerId.equals(customerId))).get();
+
+  Future<List<VisitEntity>> getPendingSyncVisits() =>
+      (select(visits)..where((v) => v.isSynced.equals(false))).get();
+
+  Future<void> insertVisit(VisitEntity visit) =>
+      into(visits).insertOnConflictUpdate(visit);
+
+  Future<void> markVisitSynced(String visitId) =>
+      (update(visits)..where((v) => v.id.equals(visitId)))
+          .write(const VisitsCompanion(isSynced: Value(true)));
+
+  // Products
+  Future<List<ProductEntity>> getAllProducts() => select(products).get();
+
+  Future<void> insertProducts(List<ProductEntity> productList) =>
+      batch((batch) {
+        batch.insertAllOnConflictUpdate(products, productList);
+      });
+
+  // Orders
+  Future<List<OrderEntity>> getPendingSyncOrders() =>
+      (select(orders)..where((o) => o.needsSync.equals(true))).get();
+
+  Future<void> insertOrder(OrderEntity order) =>
+      into(orders).insertOnConflictUpdate(order);
+
+  Future<void> insertOrderItems(List<OrderItemEntity> items) => batch((batch) {
+        batch.insertAllOnConflictUpdate(orderItems, items);
+      });
+
+  // Tracking
+  Future<void> insertTrackingLocation(TrackingEntity location) =>
+      into(trackingLocations).insert(location);
+
+  Future<List<TrackingEntity>> getPendingSyncTracking() =>
+      (select(trackingLocations)..where((t) => t.needsSync.equals(true))).get();
+
+  Future<void> markTrackingSynced(List<int> ids) =>
+      (update(trackingLocations)..where((t) => t.id.isIn(ids)))
+          .write(const TrackingLocationsCompanion(needsSync: Value(false)));
+
+  // Cleanup old data
+  Future<void> cleanupOldTracking() async {
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    await (delete(trackingLocations)
+          ..where((t) => t.at.isSmallerThanValue(cutoff)))
+        .go();
+  }
+}
+
+LazyDatabase _openConnection() {
+  return LazyDatabase(() async {
+    final dbFolder = await getApplicationDocumentsDirectory();
+    final file = File(p.join(dbFolder.path, 'arsenal_sell.db'));
+
+    if (Platform.isAndroid) {
+      await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
+    }
+
+    final cachebase = (await getTemporaryDirectory()).path;
+    sqlite3.tempDirectory = cachebase;
+
+    return NativeDatabase.createInBackground(file);
+  });
+}
+
+
+===== lib/data/local/hive/boxes.dart =====
+import 'package:hive_flutter/hive_flutter.dart';
+
+class HiveBoxes {
+  static const String settings = 'settings';
+  static const String syncQueue = 'sync_queue';
+  static const String cache = 'cache';
+
+  static late Box<dynamic> settingsBox;
+  static late Box<Map<dynamic, dynamic>> syncQueueBox;
+  static late Box<dynamic> cacheBox;
+
+  static Future<void> init() async {
+    settingsBox = await Hive.openBox(settings);
+    syncQueueBox = await Hive.openBox<Map<dynamic, dynamic>>(syncQueue);
+    cacheBox = await Hive.openBox(cache);
+  }
+
+  static Future<void> close() async {
+    await settingsBox.close();
+    await syncQueueBox.close();
+    await cacheBox.close();
+  }
+}
+
+
+===== lib/data/remote/edge_functions.dart =====
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../config/logger.dart';
+import '../models/visits/visit.dart';
+import '../models/customers/customer.dart';
+
+class EdgeFunctionsService {
+  final SupabaseClient _client = Supabase.instance.client;
+
+  /// Send visit summary email
+  Future<bool> sendVisitEmail({
+    required String visitId,
+    required String customerEmail,
+    required String customerName,
+    required String userFullName,
+    required DateTime visitDate,
+    String? notes,
+    List<String>? photoUrls,
+    String? signatureUrl,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'send-email',
+        body: {
+          'type': 'visit_summary',
+          'data': {
+            'visitId': visitId,
+            'customerEmail': customerEmail,
+            'customerName': customerName,
+            'userFullName': userFullName,
+            'visitDate': visitDate.toIso8601String(),
+            'notes': notes,
+            'photoUrls': photoUrls,
+            'signatureUrl': signatureUrl,
+          }
+        },
+      );
+
+      return response.status == 200;
+    } catch (e) {
+      logger.e('Send visit email error: $e');
+      return false;
+    }
+  }
+
+  /// Send order confirmation email
+  Future<bool> sendOrderConfirmationEmail({
+    required String orderId,
+    required String customerEmail,
+    required String customerName,
+    required double total,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'send-email',
+        body: {
+          'type': 'order_confirmation',
+          'data': {
+            'orderId': orderId,
+            'customerEmail': customerEmail,
+            'customerName': customerName,
+            'total': total,
+            'items': items,
+          }
+        },
+      );
+
+      return response.status == 200;
+    } catch (e) {
+      logger.e('Send order confirmation email error: $e');
+      return false;
+    }
+  }
+
+  /// Send payment receipt email
+  Future<bool> sendPaymentReceiptEmail({
+    required String paymentId,
+    required String customerEmail,
+    required String customerName,
+    required double amount,
+    required String method,
+    required DateTime paidAt,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'send-email',
+        body: {
+          'type': 'payment_receipt',
+          'data': {
+            'paymentId': paymentId,
+            'customerEmail': customerEmail,
+            'customerName': customerName,
+            'amount': amount,
+            'method': method,
+            'paidAt': paidAt.toIso8601String(),
+          }
+        },
+      );
+
+      return response.status == 200;
+    } catch (e) {
+      logger.e('Send payment receipt email error: $e');
+      return false;
+    }
+  }
+
+  /// Generate daily activity report
+  Future<Map<String, dynamic>?> generateDailyReport({
+    required String userId,
+    required DateTime date,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'generate-report',
+        body: {
+          'type': 'daily_activity',
+          'userId': userId,
+          'date': date.toIso8601String(),
+        },
+      );
+
+      if (response.status == 200) {
+        return response.data as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Generate daily report error: $e');
+      return null;
+    }
+  }
+
+  /// Generate weekly report
+  Future<Map<String, dynamic>?> generateWeeklyReport({
+    required String userId,
+    required DateTime weekStart,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'generate-report',
+        body: {
+          'type': 'weekly_activity',
+          'userId': userId,
+          'weekStart': weekStart.toIso8601String(),
+        },
+      );
+
+      if (response.status == 200) {
+        return response.data as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Generate weekly report error: $e');
+      return null;
+    }
+  }
+
+  /// Generate team performance report
+  Future<Map<String, dynamic>?> generateTeamReport({
+    required String companyId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'generate-report',
+        body: {
+          'type': 'team_performance',
+          'companyId': companyId,
+          'startDate': startDate.toIso8601String(),
+          'endDate': endDate.toIso8601String(),
+        },
+      );
+
+      if (response.status == 200) {
+        return response.data as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Generate team report error: $e');
+      return null;
+    }
+  }
+
+  /// Validate geofence
+  Future<bool> validateGeofence({
+    required double currentLat,
+    required double currentLng,
+    required double targetLat,
+    required double targetLng,
+    required double radiusM,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'validate-geofence',
+        body: {
+          'currentLat': currentLat,
+          'currentLng': currentLng,
+          'targetLat': targetLat,
+          'targetLng': targetLng,
+          'radiusM': radiusM,
+        },
+      );
+
+      if (response.status == 200) {
+        return response.data['isWithinGeofence'] ?? false;
+      }
+      return false;
+    } catch (e) {
+      logger.e('Validate geofence error: $e');
+      return false;
+    }
+  }
+
+  /// Calculate route distance and time
+  Future<Map<String, dynamic>?> calculateRouteDistance({
+    required List<Map<String, double>> waypoints,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'calculate-distance',
+        body: {
+          'waypoints': waypoints,
+        },
+      );
+
+      if (response.status == 200) {
+        return response.data as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Calculate route distance error: $e');
+      return null;
+    }
+  }
+
+  /// Sync offline data
+  Future<bool> syncOfflineData({
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'sync-data',
+        body: data,
+      );
+
+      return response.status == 200;
+    } catch (e) {
+      logger.e('Sync offline data error: $e');
+      return false;
+    }
+  }
+
+  /// Apply promotions to order
+  Future<Map<String, dynamic>?> applyPromotions({
+    required String orderId,
+    required List<Map<String, dynamic>> items,
+    String? customerCode,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'apply-promotions',
+        body: {
+          'orderId': orderId,
+          'items': items,
+          'customerCode': customerCode,
+        },
+      );
+
+      if (response.status == 200) {
+        return response.data as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Apply promotions error: $e');
+      return null;
+    }
+  }
+
+  /// Validate customer credit
+  Future<Map<String, dynamic>?> validateCustomerCredit({
+    required String customerId,
+    required double orderAmount,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'validate-credit',
+        body: {
+          'customerId': customerId,
+          'orderAmount': orderAmount,
+        },
+      );
+
+      if (response.status == 200) {
+        return response.data as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Validate customer credit error: $e');
+      return null;
+    }
+  }
+
+  /// Send notification to team
+  Future<bool> sendTeamNotification({
+    required String companyId,
+    required String title,
+    required String message,
+    String? targetRole,
+    List<String>? targetUserIds,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'send-notification',
+        body: {
+          'companyId': companyId,
+          'title': title,
+          'message': message,
+          'targetRole': targetRole,
+          'targetUserIds': targetUserIds,
+        },
+      );
+
+      return response.status == 200;
+    } catch (e) {
+      logger.e('Send team notification error: $e');
+      return false;
+    }
+  }
+
+  /// Generate invoice PDF
+  Future<String?> generateInvoicePdf({
+    required String orderId,
+    required Map<String, dynamic> orderData,
+    required Map<String, dynamic> customerData,
+    required Map<String, dynamic> companyData,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'generate-invoice',
+        body: {
+          'orderId': orderId,
+          'orderData': orderData,
+          'customerData': customerData,
+          'companyData': companyData,
+        },
+      );
+
+      if (response.status == 200) {
+        return response.data['pdfUrl'] as String?;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Generate invoice PDF error: $e');
+      return null;
+    }
+  }
+
+  /// Process bulk data import
+  Future<Map<String, dynamic>?> importBulkData({
+    required String dataType,
+    required List<Map<String, dynamic>> data,
+    required String companyId,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'import-data',
+        body: {
+          'dataType': dataType,
+          'data': data,
+          'companyId': companyId,
+        },
+      );
+
+      if (response.status == 200) {
+        return response.data as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Import bulk data error: $e');
+      return null;
+    }
+  }
+
+  /// Backup user data
+  Future<bool> backupUserData({
+    required String userId,
+    required String companyId,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'backup-data',
+        body: {
+          'userId': userId,
+          'companyId': companyId,
+        },
+      );
+
+      return response.status == 200;
+    } catch (e) {
+      logger.e('Backup user data error: $e');
+      return false;
+    }
+  }
+
+  /// Clean up old data
+  Future<bool> cleanupOldData({
+    required String companyId,
+    int retentionDays = 90,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'cleanup-data',
+        body: {
+          'companyId': companyId,
+          'retentionDays': retentionDays,
+        },
+      );
+
+      return response.status == 200;
+    } catch (e) {
+      logger.e('Cleanup old data error: $e');
+      return false;
+    }
+  }
+}
+
+
+===== lib/data/remote/upload_service.dart =====
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:path/path.dart' as path;
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
+import '../../config/logger.dart';
+import '../../config/app_constants.dart';
+import '../models/auth/user_profile.dart';
+
+enum UploadBucket {
+  evidencePhotos('evidence-photos'),
+  signatures('signatures'),
+  documents('documents');
+
+  const UploadBucket(this.name);
+  final String name;
+}
+
+class UploadResult {
+  final String path;
+  final String publicUrl;
+  final int size;
+  final String mimeType;
+
+  UploadResult({
+    required this.path,
+    required this.publicUrl,
+    required this.size,
+    required this.mimeType,
+  });
+}
+
+class UploadService {
+  final SupabaseClient _client = Supabase.instance.client;
+
+  /// Upload a photo file
+  Future<UploadResult> uploadPhoto({
+    required File file,
+    required String companyId,
+    required String userId,
+    String? visitId,
+    String? customerId,
+  }) async {
+    try {
+      // Validate file
+      _validateImageFile(file);
+
+      final fileName = _generateFileName(
+        userId: userId,
+        visitId: visitId,
+        customerId: customerId,
+        extension: path.extension(file.path),
+      );
+
+      final filePath = '$companyId/$userId/$fileName';
+
+      final response = await _client.storage
+          .from(UploadBucket.evidencePhotos.name)
+          .upload(filePath, file);
+
+      final publicUrl = _client.storage
+          .from(UploadBucket.evidencePhotos.name)
+          .getPublicUrl(filePath);
+
+      final fileSize = await file.length();
+
+      return UploadResult(
+        path: filePath,
+        publicUrl: publicUrl,
+        size: fileSize,
+        mimeType: _getMimeType(file.path),
+      );
+    } catch (e) {
+      logger.e('Upload photo error: $e');
+      rethrow;
+    }
+  }
+
+  /// Upload signature data
+  Future<UploadResult> uploadSignature({
+    required Uint8List signatureData,
+    required String companyId,
+    required String userId,
+    required String visitId,
+    String? signedBy,
+  }) async {
+    try {
+      // Validate signature data
+      if (signatureData.isEmpty) {
+        throw Exception('Signature data is empty');
+      }
+
+      if (signatureData.length > AppConstants.maxPhotoSize) {
+        throw Exception('Signature file too large');
+      }
+
+      final fileName = _generateSignatureFileName(
+        userId: userId,
+        visitId: visitId,
+        signedBy: signedBy,
+      );
+
+      final filePath = '$companyId/$userId/signatures/$fileName';
+
+      final response = await _client.storage
+          .from(UploadBucket.signatures.name)
+          .uploadBinary(filePath, signatureData);
+
+      final publicUrl = _client.storage
+          .from(UploadBucket.signatures.name)
+          .getPublicUrl(filePath);
+
+      return UploadResult(
+        path: filePath,
+        publicUrl: publicUrl,
+        size: signatureData.length,
+        mimeType: 'image/png',
+      );
+    } catch (e) {
+      logger.e('Upload signature error: $e');
+      rethrow;
+    }
+  }
+
+  /// Upload document file
+  Future<UploadResult> uploadDocument({
+    required File file,
+    required String companyId,
+    required String userId,
+    String? category,
+  }) async {
+    try {
+      // Validate file
+      _validateDocumentFile(file);
+
+      final fileName = _generateDocumentFileName(
+        userId: userId,
+        originalName: path.basename(file.path),
+        category: category,
+      );
+
+      final filePath = '$companyId/$userId/documents/$fileName';
+
+      final response = await _client.storage
+          .from(UploadBucket.documents.name)
+          .upload(filePath, file);
+
+      final publicUrl = _client.storage
+          .from(UploadBucket.documents.name)
+          .getPublicUrl(filePath);
+
+      final fileSize = await file.length();
+
+      return UploadResult(
+        path: filePath,
+        publicUrl: publicUrl,
+        size: fileSize,
+        mimeType: _getMimeType(file.path),
+      );
+    } catch (e) {
+      logger.e('Upload document error: $e');
+      rethrow;
+    }
+  }
+
+  /// Upload multiple photos
+  Future<List<UploadResult>> uploadMultiplePhotos({
+    required List<File> files,
+    required String companyId,
+    required String userId,
+    String? visitId,
+    String? customerId,
+  }) async {
+    final results = <UploadResult>[];
+
+    for (final file in files) {
+      try {
+        final result = await uploadPhoto(
+          file: file,
+          companyId: companyId,
+          userId: userId,
+          visitId: visitId,
+          customerId: customerId,
+        );
+        results.add(result);
+      } catch (e) {
+        logger.e('Failed to upload photo ${file.path}: $e');
+        // Continue with other files
+      }
+    }
+
+    return results;
+  }
+
+  /// Delete file from storage
+  Future<void> deleteFile(UploadBucket bucket, String filePath) async {
+    try {
+      await _client.storage.from(bucket.name).remove([filePath]);
+    } catch (e) {
+      logger.e('Delete file error: $e');
+      rethrow;
+    }
+  }
+
+  /// Get file download URL
+  Future<String> getDownloadUrl(UploadBucket bucket, String filePath) async {
+    try {
+      return _client.storage.from(bucket.name).getPublicUrl(filePath);
+    } catch (e) {
+      logger.e('Get download URL error: $e');
+      rethrow;
+    }
+  }
+
+  /// Create signed URL for temporary access
+  Future<String> createSignedUrl({
+    required UploadBucket bucket,
+    required String filePath,
+    int expiresInMinutes = 60,
+  }) async {
+    try {
+      return await _client.storage
+          .from(bucket.name)
+          .createSignedUrl(filePath, expiresInMinutes * 60);
+    } catch (e) {
+      logger.e('Create signed URL error: $e');
+      rethrow;
+    }
+  }
+
+  /// List files in a directory
+  Future<List<FileObject>> listFiles({
+    required UploadBucket bucket,
+    required String directory,
+    int limit = 100,
+  }) async {
+    try {
+      return await _client.storage
+          .from(bucket.name)
+          .list(path: directory, limit: limit);
+    } catch (e) {
+      logger.e('List files error: $e');
+      rethrow;
+    }
+  }
+
+  /// Get file metadata
+  Future<FileObject?> getFileMetadata(
+      UploadBucket bucket, String filePath) async {
+    try {
+      final files = await _client.storage
+          .from(bucket.name)
+          .list(path: path.dirname(filePath));
+
+      final fileName = path.basename(filePath);
+      return files.firstWhere(
+        (file) => file.name == fileName,
+        orElse: () => throw Exception('File not found'),
+      );
+    } catch (e) {
+      logger.e('Get file metadata error: $e');
+      return null;
+    }
+  }
+
+  // Private helper methods
+  String _generateFileName({
+    required String userId,
+    String? visitId,
+    String? customerId,
+    required String extension,
+  }) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final hash = _generateHash('$userId$visitId$customerId$timestamp');
+
+    String prefix = 'photo';
+    if (visitId != null) prefix = 'visit_$visitId';
+    if (customerId != null) prefix += '_customer_$customerId';
+
+    return '${prefix}_${timestamp}_$hash$extension';
+  }
+
+  String _generateSignatureFileName({
+    required String userId,
+    required String visitId,
+    String? signedBy,
+  }) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final hash = _generateHash('$userId$visitId$signedBy$timestamp');
+
+    return 'signature_visit_${visitId}_${timestamp}_$hash.png';
+  }
+
+  String _generateDocumentFileName({
+    required String userId,
+    required String originalName,
+    String? category,
+  }) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final extension = path.extension(originalName);
+    final nameWithoutExt = path.basenameWithoutExtension(originalName);
+    final sanitizedName = _sanitizeFileName(nameWithoutExt);
+
+    String prefix = category ?? 'document';
+    return '${prefix}_${timestamp}_$sanitizedName$extension';
+  }
+
+  String _generateHash(String input) {
+    final bytes = utf8.encode(input);
+    final digest = md5.convert(bytes);
+    return digest.toString().substring(0, 8);
+  }
+
+  String _sanitizeFileName(String fileName) {
+    return fileName
+        .replaceAll(RegExp(r'[^\w\-_.]'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .toLowerCase();
+  }
+
+  void _validateImageFile(File file) {
+    final extension = path.extension(file.path).toLowerCase();
+    if (!AppConstants.allowedImageTypes.contains(extension.substring(1))) {
+      throw Exception(
+          'Invalid image file type. Allowed: ${AppConstants.allowedImageTypes.join(', ')}');
+    }
+  }
+
+  void _validateDocumentFile(File file) {
+    final fileSize = file.lengthSync();
+    if (fileSize > AppConstants.maxPhotoSize * 2) {
+      // Documents can be larger
+      throw Exception(
+          'Document file too large. Max size: ${(AppConstants.maxPhotoSize * 2) / (1024 * 1024)}MB');
+    }
+  }
+
+  String _getMimeType(String filePath) {
+    final extension = path.extension(filePath).toLowerCase();
+    switch (extension) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.gif':
+        return 'image/gif';
+      case '.webp':
+        return 'image/webp';
+      case '.pdf':
+        return 'application/pdf';
+      case '.doc':
+        return 'application/msword';
+      case '.docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case '.txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  /// Compress image before upload (optional)
+  Future<File> compressImage(File file, {int quality = 80}) async {
+    // This would require image compression library
+    // For now, return the original file
+    return file;
+  }
+
+  /// Generate thumbnail (optional)
+  Future<Uint8List?> generateThumbnail(File imageFile, {int size = 200}) async {
+    // This would require image processing library
+    // For now, return null
+    return null;
+  }
+
+  /// Batch upload with progress tracking
+  Future<List<UploadResult>> batchUpload({
+    required List<File> files,
+    required String companyId,
+    required String userId,
+    Function(int uploaded, int total)? onProgress,
+  }) async {
+    final results = <UploadResult>[];
+
+    for (int i = 0; i < files.length; i++) {
+      try {
+        final result = await uploadPhoto(
+          file: files[i],
+          companyId: companyId,
+          userId: userId,
+        );
+        results.add(result);
+        onProgress?.call(i + 1, files.length);
+      } catch (e) {
+        logger.e('Batch upload failed for file ${files[i].path}: $e');
+      }
+    }
+
+    return results;
+  }
+}
+
+
+===== lib/data/remote/supabase_client.dart =====
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/customers/customer.dart';
+import '../models/visits/visit.dart';
+import '../models/sales/order.dart';
+import '../models/geo/location_sample.dart';
+import '../../config/logger.dart';
+
+class SupabaseService {
+  final SupabaseClient _client = Supabase.instance.client;
+
+  // Customers
+  Future<List<Customer>> getCustomers() async {
+    try {
+      final response = await _client.from('customers').select();
+      return (response as List).map((e) => Customer.fromJson(e)).toList();
+    } catch (e) {
+      logger.e('Get customers error: $e');
+      rethrow;
+    }
+  }
+
+  Future<Customer> createCustomer(Customer customer) async {
+    try {
+      final response = await _client
+          .from('customers')
+          .insert(customer.toJson())
+          .select()
+          .single();
+      return Customer.fromJson(response);
+    } catch (e) {
+      logger.e('Create customer error: $e');
+      rethrow;
+    }
+  }
+
+  // Visits
+  Future<Visit> createVisit(Visit visit) async {
+    try {
+      final response =
+          await _client.from('visits').insert(visit.toJson()).select().single();
+      return Visit.fromJson(response);
+    } catch (e) {
+      logger.e('Create visit error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateVisit(Visit visit) async {
+    try {
+      await _client.from('visits').update(visit.toJson()).eq('id', visit.id);
+    } catch (e) {
+      logger.e('Update visit error: $e');
+      rethrow;
+    }
+  }
+
+  // Orders
+  Future<Order> createOrder(Order order) async {
+    try {
+      final response =
+          await _client.from('orders').insert(order.toJson()).select().single();
+      return Order.fromJson(response);
+    } catch (e) {
+      logger.e('Create order error: $e');
+      rethrow;
+    }
+  }
+
+  // Tracking
+  Future<void> uploadTrackingLocations(List<LocationSample> locations) async {
+    try {
+      final data = locations.map((l) => l.toJson()).toList();
+      await _client.from('tracking_locations').insert(data);
+    } catch (e) {
+      logger.e('Upload tracking locations error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<LocationSample>> getRealtimeLocations() async {
+    try {
+      final response = await _client
+          .from('tracking_locations')
+          .select()
+          .gte(
+              'at',
+              DateTime.now()
+                  .subtract(const Duration(minutes: 30))
+                  .toIso8601String())
+          .order('at', ascending: false);
+
+      return (response as List).map((e) => LocationSample.fromJson(e)).toList();
+    } catch (e) {
+      logger.e('Get realtime locations error: $e');
+      return [];
+    }
+  }
+
+  // File Upload
+  Future<String> uploadPhoto(
+      String path, String bucketName, String fileName) async {
+    try {
+      final response =
+          await _client.storage.from(bucketName).upload(fileName, File(path));
+      return response;
+    } catch (e) {
+      logger.e('Upload photo error: $e');
+      rethrow;
+    }
+  }
+
+  Future<String> uploadSignature(
+      Uint8List signatureData, String bucketName, String fileName) async {
+    try {
+      final response = await _client.storage
+          .from(bucketName)
+          .uploadBinary(fileName, signatureData);
+      return response;
+    } catch (e) {
+      logger.e('Upload signature error: $e');
+      rethrow;
+    }
+  }
+}
+
+
+===== lib/data/remote/api_routes.dart =====
+class ApiRoutes {
+  // Base endpoints
+  static const String auth = '/auth/v1';
+  static const String rest = '/rest/v1';
+  static const String storage = '/storage/v1';
+  static const String functions = '/functions/v1';
+
+  // Auth endpoints
+  static const String signIn = '$auth/token?grant_type=password';
+  static const String signUp = '$auth/signup';
+  static const String signOut = '$auth/logout';
+  static const String refreshToken = '$auth/token?grant_type=refresh_token';
+  static const String resetPassword = '$auth/recover';
+
+  // User profile
+  static const String profiles = '$rest/profiles';
+  static String profile(String userId) => '$profiles?id=eq.$userId';
+
+  // Companies and warehouses
+  static const String companies = '$rest/companies';
+  static const String warehouses = '$rest/warehouses';
+  static String companyWarehouses(String companyId) =>
+      '$warehouses?company_id=eq.$companyId';
+
+  // Customers
+  static const String customers = '$rest/customers';
+  static String customerById(String id) => '$customers?id=eq.$id';
+  static String customersByCompany(String companyId) =>
+      '$customers?company_id=eq.$companyId';
+  static String customersNearby(double lat, double lng, double radiusKm) =>
+      '$customers?location=ov.CIRCLE(POINT($lng $lat),$radiusKm)';
+
+  // Visits
+  static const String visits = '$rest/visits';
+  static String visitById(String id) => '$visits?id=eq.$id';
+  static String visitsByCustomer(String customerId) =>
+      '$visits?customer_id=eq.$customerId&order=started_at.desc';
+  static String visitsByUser(String userId) =>
+      '$visits?user_id=eq.$userId&order=started_at.desc';
+  static String pendingVisits() => '$visits?finished_at=is.null';
+  static String visitsByDateRange(String startDate, String endDate) =>
+      '$visits?started_at=gte.$startDate&started_at=lte.$endDate';
+
+  // Visit photos and signatures
+  static const String visitPhotos = '$rest/visit_photos';
+  static const String visitSignatures = '$rest/visit_signatures';
+  static String visitPhotosByVisit(String visitId) =>
+      '$visitPhotos?visit_id=eq.$visitId';
+  static String visitSignatureByVisit(String visitId) =>
+      '$visitSignatures?visit_id=eq.$visitId';
+
+  // Products and pricing
+  static const String products = '$rest/products';
+  static const String priceLists = '$rest/price_lists';
+  static const String prices = '$rest/prices';
+  static String productsByCompany(String companyId) =>
+      '$products?company_id=eq.$companyId&active=eq.true';
+  static String pricesByList(String priceListId) =>
+      '$prices?price_list_id=eq.$priceListId&select=*,product:products(*)';
+
+  // Orders
+  static const String orders = '$rest/orders';
+  static const String orderItems = '$rest/order_items';
+  static String orderById(String id) =>
+      '$orders?id=eq.$id&select=*,customer:customers(*),items:order_items(*,product:products(*))';
+  static String ordersByCustomer(String customerId) =>
+      '$orders?customer_id=eq.$customerId&order=created_at.desc';
+  static String ordersByUser(String userId) =>
+      '$orders?user_id=eq.$userId&order=created_at.desc';
+  static String orderItemsByOrder(String orderId) =>
+      '$orderItems?order_id=eq.$orderId&select=*,product:products(*)';
+
+  // Deliveries
+  static const String deliveries = '$rest/deliveries';
+  static String deliveriesByOrder(String orderId) =>
+      '$deliveries?order_id=eq.$orderId';
+  static String pendingDeliveries() =>
+      '$deliveries?status=neq.DELIVERED&select=*,order:orders(*,customer:customers(*))';
+
+  // Payments
+  static const String payments = '$rest/payments';
+  static String paymentsByCustomer(String customerId) =>
+      '$payments?customer_id=eq.$customerId&order=paid_at.desc';
+  static String paymentsByUser(String userId) =>
+      '$payments?user_id=eq.$userId&order=paid_at.desc';
+
+  // Returns
+  static const String returns = '$rest/returns';
+  static String returnsByOrder(String orderId) =>
+      '$returns?order_id=eq.$orderId';
+
+  // Routes and planning
+  static const String routes = '$rest/routes';
+  static const String routeStops = '$rest/route_stops';
+  static String routeById(String id) =>
+      '$routes?id=eq.$id&select=*,stops:route_stops(*,customer:customers(*))';
+  static String routesByUser(String userId) =>
+      '$routes?owner_id=eq.$userId&order=date.desc';
+  static String routesByDate(String date) => '$routes?date=eq.$date';
+  static String routeStopsByRoute(String routeId) =>
+      '$routeStops?route_id=eq.$routeId&order=sequence&select=*,customer:customers(*)';
+
+  // Tracking and geolocation
+  static const String trackingLocations = '$rest/tracking_locations';
+  static String trackingByUser(String userId, String? since) {
+    String url = '$trackingLocations?user_id=eq.$userId&order=at.desc';
+    if (since != null) {
+      url += '&at=gte.$since';
+    }
+    return url;
+  }
+
+  static String realtimeLocations() =>
+      '$trackingLocations?at=gte.${DateTime.now().subtract(const Duration(minutes: 30)).toIso8601String()}&order=at.desc';
+
+  // Geofences
+  static const String geofences = '$rest/geofences';
+  static String geofencesByOwner(String ownerId) =>
+      '$geofences?owner_id=eq.$ownerId';
+
+  // Forms and surveys
+  static const String formTemplates = '$rest/form_templates';
+  static const String formResponses = '$rest/form_responses';
+  static String formTemplatesByCompany(String companyId) =>
+      '$formTemplates?company_id=eq.$companyId';
+  static String formResponsesByTemplate(String templateId) =>
+      '$formResponses?template_id=eq.$templateId';
+  static String formResponsesByVisit(String visitId) =>
+      '$formResponses?visit_id=eq.$visitId';
+
+  // Promotions
+  static const String promotions = '$rest/promotions';
+  static String activePromotions() =>
+      '$promotions?active=eq.true&starts_at=lte.${DateTime.now().toIso8601String()}&ends_at=gte.${DateTime.now().toIso8601String()}';
+
+  // Audit logs
+  static const String auditLogs = '$rest/audit_logs';
+  static String auditLogsByEntity(String entity, String entityId) =>
+      '$auditLogs?entity=eq.$entity&entity_id=eq.$entityId&order=created_at.desc';
+
+  // Email queue
+  static const String emailQueue = '$rest/email_queue';
+  static String pendingEmails() => '$emailQueue?sent_at=is.null';
+
+  // Storage endpoints
+  static const String evidencePhotos = '$storage/object/evidence-photos';
+  static const String signatures = '$storage/object/signatures';
+  static const String documents = '$storage/object/documents';
+
+  // File upload
+  static String uploadFile(String bucket, String fileName) =>
+      '$storage/object/$bucket/$fileName';
+  static String downloadFile(String bucket, String fileName) =>
+      '$storage/object/public/$bucket/$fileName';
+
+  // Edge Functions
+  static const String sendEmail = '$functions/send-email';
+  static const String generateReport = '$functions/generate-report';
+  static const String syncData = '$functions/sync-data';
+  static const String calculateDistance = '$functions/calculate-distance';
+  static const String validateGeofence = '$functions/validate-geofence';
+
+  // RPC Functions
+  static const String recalcOrderTotals = '$rest/rpc/recalc_order_totals';
+  static const String enqueueVisitEmail = '$rest/rpc/enqueue_visit_email';
+
+  // Query builders
+  static String withSelect(String baseUrl, String select) {
+    final separator = baseUrl.contains('?') ? '&' : '?';
+    return '$baseUrl${separator}select=$select';
+  }
+
+  static String withFilter(String baseUrl, String filter) {
+    final separator = baseUrl.contains('?') ? '&' : '?';
+    return '$baseUrl$separator$filter';
+  }
+
+  static String withOrder(String baseUrl, String order) {
+    final separator = baseUrl.contains('?') ? '&' : '?';
+    return '$baseUrl${separator}order=$order';
+  }
+
+  static String withLimit(String baseUrl, int limit) {
+    final separator = baseUrl.contains('?') ? '&' : '?';
+    return '$baseUrl${separator}limit=$limit';
+  }
+
+  static String withRange(String baseUrl, int from, int to) {
+    final separator = baseUrl.contains('?') ? '&' : '?';
+    return '$baseUrl${separator}offset=$from&limit=${to - from + 1}';
+  }
+
+  // Real-time subscriptions
+  static String realtimeChannel(String table) => 'realtime:$table';
+  static String realtimeFilter(String column, String operator, String value) =>
+      '$column=$operator.$value';
+}
+
+
+===== lib/app.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'core/theme/theme.dart';
+import 'features/auth/bloc/auth_cubit.dart';
+import 'features/map/bloc/map_cubit.dart';
+import 'features/customers/bloc/customers_cubit.dart';
+import 'features/visits/bloc/visits_cubit.dart';
+import 'features/orders/bloc/order_cubit.dart';
+import 'features/deliveries/bloc/deliveries_cubit.dart';
+import 'features/payments/bloc/payments_cubit.dart';
+import 'features/supervisor/bloc/supervisor_cubit.dart';
+import 'routing/app_router.dart';
+import 'data/repositories/auth_repository.dart';
+import 'data/repositories/customers_repository.dart';
+import 'data/repositories/visits_repository.dart';
+import 'data/repositories/orders_repository.dart';
+import 'data/repositories/deliveries_repository.dart';
+import 'data/repositories/payments_repository.dart';
+import 'data/repositories/tracking_repository.dart';
+import 'services/location/location_service.dart';
+import 'services/sync/sync_queue.dart';
+
+class ArsenalSellApp extends StatelessWidget {
+  const ArsenalSellApp({super.key});
+
+  @override
+  Widget build(BuildContext context) => MultiRepositoryProvider(
+        providers: [
+          RepositoryProvider(create: (_) => AuthRepository()),
+          RepositoryProvider(create: (_) => CustomersRepository()),
+          RepositoryProvider(create: (_) => VisitsRepository()),
+          RepositoryProvider(create: (_) => OrdersRepository()),
+          RepositoryProvider(create: (_) => DeliveriesRepository()),
+          RepositoryProvider(create: (_) => PaymentsRepository()),
+          RepositoryProvider(create: (_) => TrackingRepository()),
+          RepositoryProvider(create: (_) => LocationService()),
+          RepositoryProvider(create: (_) => SyncQueue()),
+        ],
+        child: MultiBlocProvider(
+          providers: [
+            BlocProvider(
+              create: (context) => AuthCubit(
+                context.read<AuthRepository>(),
+              )..checkAuthStatus(),
+            ),
+            BlocProvider(
+              create: (context) => MapCubit(
+                context.read<LocationService>(),
+                context.read<TrackingRepository>(),
+              ),
+            ),
+            BlocProvider(
+              create: (context) => CustomersCubit(
+                context.read<CustomersRepository>(),
+              ),
+            ),
+            BlocProvider(
+              create: (context) => VisitsCubit(
+                context.read<VisitsRepository>(),
+                context.read<LocationService>(),
+              ),
+            ),
+            BlocProvider(
+              create: (context) => OrderCubit(
+                context.read<OrdersRepository>(),
+              ),
+            ),
+            BlocProvider(
+              create: (context) => DeliveriesCubit(
+                context.read<DeliveriesRepository>(),
+              ),
+            ),
+            BlocProvider(
+              create: (context) => PaymentsCubit(
+                context.read<PaymentsRepository>(),
+              ),
+            ),
+            BlocProvider(
+              create: (context) => SupervisorCubit(
+                  context.read<TrackingRepository>(),
+                  context.read<CustomersRepository>()),
+            ),
+          ],
+          child: MaterialApp.router(
+            title: 'Arsenal Sell App',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            routerConfig: AppRouter.router,
+            debugShowCheckedModeBanner: false,
+          ),
+        ),
+      );
+}
+
+
+===== lib/services/location/location_service.dart =====
+import 'dart:async';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../../config/logger.dart';
+import '../../config/app_constants.dart';
+
+class LocationService {
+  static final LocationService _instance = LocationService._internal();
+  factory LocationService() => _instance;
+  LocationService._internal();
+
+  StreamController<Position>? _locationController;
+  StreamSubscription<Position>? _locationSubscription;
+
+  Stream<Position> get locationStream {
+    _locationController ??= StreamController<Position>.broadcast();
+    return _locationController!.stream;
+  }
+
+  Future<bool> requestPermissions() async {
+    try {
+      final status = await Permission.location.request();
+      if (status.isGranted) {
+        final backgroundStatus = await Permission.locationAlways.request();
+        return backgroundStatus.isGranted;
+      }
+      return false;
+    } catch (e) {
+      logger.e('Request permissions error: $e');
+      return false;
+    }
+  }
+
+  Future<Position?> getCurrentLocation() async {
+    try {
+      final hasPermission = await _checkLocationPermission();
+      if (!hasPermission) return null;
+
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+    } catch (e) {
+      logger.e('Get current location error: $e');
+      return null;
+    }
+  }
+
+  Future<void> startLocationTracking() async {
+    try {
+      final hasPermission = await _checkLocationPermission();
+      if (!hasPermission) {
+        logger.w('Location permission not granted');
+        return;
+      }
+
+      const locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5, // meters
+        timeLimit: Duration(seconds: 30),
+      );
+
+      _locationSubscription = Geolocator.getPositionStream(
+        locationSettings: locationSettings,
+      ).listen(
+        (position) {
+          _locationController?.add(position);
+        },
+        onError: (error) {
+          logger.e('Location stream error: $error');
+        },
+      );
+    } catch (e) {
+      logger.e('Start location tracking error: $e');
+    }
+  }
+
+  Future<void> stopLocationTracking() async {
+    await _locationSubscription?.cancel();
+    _locationSubscription = null;
+  }
+
+  Future<bool> _checkLocationPermission() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      logger.w('Location services are disabled');
+      return false;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        logger.w('Location permissions are denied');
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      logger.w('Location permissions are permanently denied');
+      return false;
+    }
+
+    return true;
+  }
+
+  double calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
+  }
+
+  bool isWithinGeofence(
+    double currentLat,
+    double currentLon,
+    double targetLat,
+    double targetLon,
+    double radiusM,
+  ) {
+    final distance =
+        calculateDistance(currentLat, currentLon, targetLat, targetLon);
+    return distance <= radiusM;
+  }
+
+  void dispose() {
+    stopLocationTracking();
+    _locationController?.close();
+  }
+}
+
+
+===== lib/services/location/background_location.dart =====
+import 'dart:async';
+import 'dart:isolate';
+import 'dart:ui';
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../config/logger.dart';
+import '../../config/app_constants.dart';
+import '../../data/models/geo/location_sample.dart';
+import '../../data/repositories/tracking_repository.dart';
+
+class BackgroundLocationService {
+  static const String _isolateName = 'LocationIsolate';
+  static const String _portName = 'LocationPort';
+
+  static ReceivePort? _receivePort;
+  static SendPort? _sendPort;
+  static StreamSubscription<Position>? _locationSubscription;
+  static bool _isRunning = false;
+
+  static Future<bool> start() async {
+    if (_isRunning) return true;
+
+    try {
+      // Check permissions
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        logger.w('Location permission not granted for background tracking');
+        return false;
+      }
+
+      // Initialize isolate communication
+      _receivePort = ReceivePort();
+      final isolateReady = Completer<bool>();
+
+      _receivePort!.listen((dynamic data) {
+        if (data is SendPort) {
+          _sendPort = data;
+          isolateReady.complete(true);
+        } else if (data is Map) {
+          _handleLocationUpdate(data);
+        }
+      });
+
+      // Start isolate
+      await Isolate.spawn(
+        _locationIsolateEntryPoint,
+        _receivePort!.sendPort,
+        debugName: _isolateName,
+      );
+
+      await isolateReady.future;
+      _isRunning = true;
+
+      logger.i('Background location service started');
+      return true;
+    } catch (e) {
+      logger.e('Failed to start background location service: $e');
+      return false;
+    }
+  }
+
+  static Future<void> stop() async {
+    if (!_isRunning) return;
+
+    try {
+      _sendPort?.send({'command': 'stop'});
+      _receivePort?.close();
+      _locationSubscription?.cancel();
+
+      _receivePort = null;
+      _sendPort = null;
+      _locationSubscription = null;
+      _isRunning = false;
+
+      logger.i('Background location service stopped');
+    } catch (e) {
+      logger.e('Error stopping background location service: $e');
+    }
+  }
+
+  static void _locationIsolateEntryPoint(SendPort sendPort) {
+    final receivePort = ReceivePort();
+    sendPort.send(receivePort.sendPort);
+
+    StreamSubscription<Position>? locationSubscription;
+
+    receivePort.listen((dynamic data) async {
+      if (data is Map && data['command'] == 'stop') {
+        locationSubscription?.cancel();
+        Isolate.exit();
+      }
+    });
+
+    // Start location tracking in isolate
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10, // meters
+      timeLimit: Duration(seconds: 30),
+    );
+
+    locationSubscription = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
+    ).listen(
+      (position) {
+        sendPort.send({
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'accuracy': position.accuracy,
+          'speed': position.speed,
+          'timestamp': position.timestamp.millisecondsSinceEpoch,
+        });
+      },
+      onError: (error) {
+        sendPort.send({'error': error.toString()});
+      },
+    );
+  }
+
+  static void _handleLocationUpdate(Map<String, dynamic> data) {
+    if (data.containsKey('error')) {
+      logger.e('Background location error: ${data['error']}');
+      return;
+    }
+
+    try {
+      final locationSample = LocationSample(
+        id: DateTime.now().millisecondsSinceEpoch,
+        companyId: 'current_company_id', // TODO: Get from auth
+        userId: 'current_user_id', // TODO: Get from auth
+        at: DateTime.fromMillisecondsSinceEpoch(data['timestamp']),
+        latitude: data['latitude'],
+        longitude: data['longitude'],
+        speedMs: data['speed'],
+        accuracyM: data['accuracy'],
+      );
+
+      // Save to local database (this would need to be done through a service)
+      // TrackingRepository().saveLocationSample(locationSample);
+    } catch (e) {
+      logger.e('Error handling location update: $e');
+    }
+  }
+
+  static bool get isRunning => _isRunning;
+}
+
+
+===== lib/services/location/geofence_service.dart =====
+import 'dart:async';
+import 'package:geolocator/geolocator.dart';
+import '../../config/logger.dart';
+import '../../data/models/geo/geofence.dart';
+import '../../data/models/customers/customer.dart';
+
+enum GeofenceEvent { enter, exit, dwell }
+
+class GeofenceService {
+  static final GeofenceService _instance = GeofenceService._internal();
+  factory GeofenceService() => _instance;
+  GeofenceService._internal();
+
+  final Map<String, Geofence> _activeGeofences = {};
+  final Map<String, bool> _currentStatus = {}; // true = inside, false = outside
+  final StreamController<GeofenceEventData> _eventController =
+      StreamController<GeofenceEventData>.broadcast();
+
+  Stream<GeofenceEventData> get eventStream => _eventController.stream;
+
+  void addCustomerGeofence(Customer customer) {
+    if (customer.latitude == null || customer.longitude == null) return;
+
+    final geofence = Geofence(
+      id: 'customer_${customer.id}',
+      companyId: customer.companyId,
+      ownerId: 'current_user_id', // TODO: Get from auth
+      radiusM: 10, // Default radius
+      centerLatitude: customer.latitude!,
+      centerLongitude: customer.longitude!,
+    );
+
+    _activeGeofences[geofence.id] = geofence;
+    _currentStatus[geofence.id] = false;
+  }
+
+  void addGeofence(Geofence geofence) {
+    _activeGeofences[geofence.id] = geofence;
+    _currentStatus[geofence.id] = false;
+  }
+
+  void removeGeofence(String geofenceId) {
+    _activeGeofences.remove(geofenceId);
+    _currentStatus.remove(geofenceId);
+  }
+
+  void clearAllGeofences() {
+    _activeGeofences.clear();
+    _currentStatus.clear();
+  }
+
+  void checkPosition(Position position) {
+    for (final geofence in _activeGeofences.values) {
+      final distance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        geofence.centerLatitude,
+        geofence.centerLongitude,
+      );
+
+      final isInside = distance <= geofence.radiusM;
+      final wasInside = _currentStatus[geofence.id] ?? false;
+
+      if (isInside && !wasInside) {
+        // Entered geofence
+        _currentStatus[geofence.id] = true;
+        _eventController.add(GeofenceEventData(
+          geofence: geofence,
+          event: GeofenceEvent.enter,
+          position: position,
+          distance: distance,
+        ));
+      } else if (!isInside && wasInside) {
+        // Exited geofence
+        _currentStatus[geofence.id] = false;
+        _eventController.add(GeofenceEventData(
+          geofence: geofence,
+          event: GeofenceEvent.exit,
+          position: position,
+          distance: distance,
+        ));
+      }
+    }
+  }
+
+  bool isInsideGeofence(String geofenceId) {
+    return _currentStatus[geofenceId] ?? false;
+  }
+
+  List<String> getActiveGeofences() {
+    return _currentStatus.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  void dispose() {
+    _eventController.close();
+    _activeGeofences.clear();
+    _currentStatus.clear();
+  }
+}
+
+class GeofenceEventData {
+  final Geofence geofence;
+  final GeofenceEvent event;
+  final Position position;
+  final double distance;
+
+  GeofenceEventData({
+    required this.geofence,
+    required this.event,
+    required this.position,
+    required this.distance,
+  });
+}
+
+
+===== lib/services/sync/serializers.dart =====
+import 'dart:convert';
+import '../../config/logger.dart';
+import '../../data/models/customers/customer.dart';
+import '../../data/models/visits/visit.dart';
+import '../../data/models/sales/order.dart';
+import '../../data/models/sales/product.dart';
+import '../../data/models/geo/location_sample.dart';
+import '../../data/models/auth/user_profile.dart';
+import '../../data/models/routes/route_plan.dart';
+import '../../data/repositories/payments_repository.dart';
+
+/// Service for serializing and deserializing data for sync operations
+class SyncSerializers {
+  /// Serialize customer data for sync
+  static Map<String, dynamic> serializeCustomer(Customer customer) {
+    try {
+      final data = customer.toJson();
+
+      // Add sync metadata
+      data['sync_action'] = 'upsert';
+      data['sync_timestamp'] = DateTime.now().toIso8601String();
+      data['local_id'] = customer.id;
+
+      // Handle coordinates for PostGIS
+      if (customer.latitude != null && customer.longitude != null) {
+        data['location'] = {
+          'type': 'Point',
+          'coordinates': [customer.longitude, customer.latitude],
+        };
+      }
+
+      return data;
+    } catch (e) {
+      logger.e('Serialize customer error: $e');
+      rethrow;
+    }
+  }
+
+  /// Deserialize customer data from sync
+  static Customer deserializeCustomer(Map<String, dynamic> data) {
+    try {
+      // Handle PostGIS coordinates
+      if (data['location'] != null && data['location']['coordinates'] != null) {
+        final coordinates = data['location']['coordinates'] as List;
+        if (coordinates.length >= 2) {
+          data['longitude'] = coordinates[0];
+          data['latitude'] = coordinates[1];
+        }
+      }
+
+      return Customer.fromJson(data);
+    } catch (e) {
+      logger.e('Deserialize customer error: $e');
+      rethrow;
+    }
+  }
+
+  /// Serialize visit data for sync
+  static Map<String, dynamic> serializeVisit(Visit visit) {
+    try {
+      final data = visit.toJson();
+
+      // Add sync metadata
+      data['sync_action'] = 'upsert';
+      data['sync_timestamp'] = DateTime.now().toIso8601String();
+      data['local_id'] = visit.id;
+
+      // Handle coordinates for PostGIS
+      if (visit.checkinLatitude != null && visit.checkinLongitude != null) {
+        data['checkin'] = {
+          'type': 'Point',
+          'coordinates': [visit.checkinLongitude, visit.checkinLatitude],
+        };
+      }
+
+      if (visit.checkoutLatitude != null && visit.checkoutLongitude != null) {
+        data['checkout'] = {
+          'type': 'Point',
+          'coordinates': [visit.checkoutLongitude, visit.checkoutLatitude],
+        };
+      }
+
+      // Handle photos and signatures
+      if (visit.photos.isNotEmpty) {
+        data['photos'] = visit.photos
+            .map((photo) => {
+                  'storage_path': photo.storagePath,
+                  'created_at': photo.createdAt?.toIso8601String(),
+                })
+            .toList();
+      }
+
+      if (visit.signature != null) {
+        data['signature'] = {
+          'storage_path': visit.signature!.storagePath,
+          'signed_by': visit.signature!.signedBy,
+          'created_at': visit.signature!.createdAt?.toIso8601String(),
+        };
+      }
+
+      return data;
+    } catch (e) {
+      logger.e('Serialize visit error: $e');
+      rethrow;
+    }
+  }
+
+  /// Deserialize visit data from sync
+  static Visit deserializeVisit(Map<String, dynamic> data) {
+    try {
+      // Handle PostGIS coordinates
+      if (data['checkin'] != null && data['checkin']['coordinates'] != null) {
+        final coordinates = data['checkin']['coordinates'] as List;
+        if (coordinates.length >= 2) {
+          data['checkinLongitude'] = coordinates[0];
+          data['checkinLatitude'] = coordinates[1];
+        }
+      }
+
+      if (data['checkout'] != null && data['checkout']['coordinates'] != null) {
+        final coordinates = data['checkout']['coordinates'] as List;
+        if (coordinates.length >= 2) {
+          data['checkoutLongitude'] = coordinates[0];
+          data['checkoutLatitude'] = coordinates[1];
+        }
+      }
+
+      // Handle photos array
+      if (data['photos'] != null) {
+        final photos = (data['photos'] as List)
+            .map((photo) => VisitPhoto(
+                  id: photo['id'] ??
+                      DateTime.now().millisecondsSinceEpoch.toString(),
+                  visitId: data['id'],
+                  storagePath: photo['storage_path'],
+                  createdAt: photo['created_at'] != null
+                      ? DateTime.parse(photo['created_at'])
+                      : null,
+                ))
+            .toList();
+        data['photos'] = photos.map((p) => p.toJson()).toList();
+      }
+
+      // Handle signature
+      if (data['signature'] != null) {
+        final signature = VisitSignature(
+          id: data['signature']['id'] ??
+              DateTime.now().millisecondsSinceEpoch.toString(),
+          visitId: data['id'],
+          storagePath: data['signature']['storage_path'],
+          signedBy: data['signature']['signed_by'],
+          createdAt: data['signature']['created_at'] != null
+              ? DateTime.parse(data['signature']['created_at'])
+              : null,
+        );
+        data['signature'] = signature.toJson();
+      }
+
+      return Visit.fromJson(data);
+    } catch (e) {
+      logger.e('Deserialize visit error: $e');
+      rethrow;
+    }
+  }
+
+  /// Serialize order data for sync
+  static Map<String, dynamic> serializeOrder(Order order) {
+    try {
+      final data = order.toJson();
+
+      // Add sync metadata
+      data['sync_action'] = 'upsert';
+      data['sync_timestamp'] = DateTime.now().toIso8601String();
+      data['local_id'] = order.id;
+
+      // Serialize order items separately for relational structure
+      if (order.items.isNotEmpty) {
+        data['items'] = order.items
+            .map((item) => {
+                  'id': item.id,
+                  'order_id': order.id,
+                  'product_id': item.productId,
+                  'qty': item.qty,
+                  'price': item.price,
+                  'discount': item.discount,
+                  'total': item.total,
+                })
+            .toList();
+      }
+
+      return data;
+    } catch (e) {
+      logger.e('Serialize order error: $e');
+      rethrow;
+    }
+  }
+
+  /// Deserialize order data from sync
+  static Order deserializeOrder(Map<String, dynamic> data) {
+    try {
+      // Handle order items
+      if (data['items'] != null) {
+        final items = (data['items'] as List)
+            .map((itemData) => OrderItem(
+                  id: itemData['id'],
+                  orderId: itemData['order_id'],
+                  productId: itemData['product_id'],
+                  qty: itemData['qty']?.toDouble() ?? 0,
+                  price: itemData['price']?.toDouble() ?? 0,
+                  discount: itemData['discount']?.toDouble() ?? 0,
+                  total: itemData['total']?.toDouble() ?? 0,
+                ))
+            .toList();
+        data['items'] = items.map((item) => item.toJson()).toList();
+      }
+
+      return Order.fromJson(data);
+    } catch (e) {
+      logger.e('Deserialize order error: $e');
+      rethrow;
+    }
+  }
+
+  /// Serialize location sample for sync
+  static Map<String, dynamic> serializeLocationSample(LocationSample sample) {
+    try {
+      final data = sample.toJson();
+
+      // Add sync metadata
+      data['sync_action'] = 'insert';
+      data['sync_timestamp'] = DateTime.now().toIso8601String();
+      data['local_id'] = sample.id.toString();
+
+      // Handle coordinates for PostGIS
+      data['point'] = {
+        'type': 'Point',
+        'coordinates': [sample.longitude, sample.latitude],
+      };
+
+      return data;
+    } catch (e) {
+      logger.e('Serialize location sample error: $e');
+      rethrow;
+    }
+  }
+
+  /// Deserialize location sample from sync
+  static LocationSample deserializeLocationSample(Map<String, dynamic> data) {
+    try {
+      // Handle PostGIS coordinates
+      if (data['point'] != null && data['point']['coordinates'] != null) {
+        final coordinates = data['point']['coordinates'] as List;
+        if (coordinates.length >= 2) {
+          data['longitude'] = coordinates[0];
+          data['latitude'] = coordinates[1];
+        }
+      }
+
+      return LocationSample.fromJson(data);
+    } catch (e) {
+      logger.e('Deserialize location sample error: $e');
+      rethrow;
+    }
+  }
+
+  /// Serialize payment data for sync
+  static Map<String, dynamic> serializePayment(PaymentModel payment) {
+    try {
+      final data = {
+        'id': payment.id,
+        'order_id': payment.orderId,
+        'customer_id': payment.customerId,
+        'user_id': payment.userId,
+        'amount': payment.amount,
+        'method': payment.method,
+        'paid_at': payment.paidAt.toIso8601String(),
+        'notes': payment.notes,
+        'status': payment.status,
+      };
+
+      // Add sync metadata
+      data['sync_action'] = 'upsert';
+      data['sync_timestamp'] = DateTime.now().toIso8601String();
+      data['local_id'] = payment.id;
+
+      return data;
+    } catch (e) {
+      logger.e('Serialize payment error: $e');
+      rethrow;
+    }
+  }
+
+  /// Deserialize payment data from sync
+  static PaymentModel deserializePayment(Map<String, dynamic> data) {
+    try {
+      return PaymentModel(
+        id: data['id'],
+        orderId: data['order_id'],
+        customerId: data['customer_id'],
+        userId: data['user_id'],
+        amount: data['amount']?.toDouble() ?? 0,
+        method: data['method'],
+        paidAt: DateTime.parse(data['paid_at']),
+        notes: data['notes'],
+        status: data['status'] ?? 'PENDING',
+      );
+    } catch (e) {
+      logger.e('Deserialize payment error: $e');
+      rethrow;
+    }
+  }
+
+  /// Serialize route plan for sync
+  static Map<String, dynamic> serializeRoutePlan(RoutePlan route) {
+    try {
+      final data = route.toJson();
+
+      // Add sync metadata
+      data['sync_action'] = 'upsert';
+      data['sync_timestamp'] = DateTime.now().toIso8601String();
+      data['local_id'] = route.id;
+
+      // Serialize route stops separately for relational structure
+      if (route.stops.isNotEmpty) {
+        data['stops'] = route.stops
+            .map((stop) => {
+                  'id': stop.id,
+                  'route_id': route.id,
+                  'customer_id': stop.customerId,
+                  'planned_time': stop.plannedTime?.toIso8601String(),
+                  'sequence': stop.sequence,
+                  'notes': stop.notes,
+                })
+            .toList();
+      }
+
+      return data;
+    } catch (e) {
+      logger.e('Serialize route plan error: $e');
+      rethrow;
+    }
+  }
+
+  /// Create batch sync payload
+  static Map<String, dynamic> createBatchSyncPayload({
+    List<Customer>? customers,
+    List<Visit>? visits,
+    List<Order>? orders,
+    List<LocationSample>? locationSamples,
+    List<PaymentModel>? payments,
+    List<RoutePlan>? routes,
+  }) {
+    try {
+      final payload = <String, dynamic>{
+        'batch_id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'timestamp': DateTime.now().toIso8601String(),
+        'data': <String, List<Map<String, dynamic>>>{},
+      };
+
+      if (customers != null && customers.isNotEmpty) {
+        payload['data']['customers'] =
+            customers.map((customer) => serializeCustomer(customer)).toList();
+      }
+
+      if (visits != null && visits.isNotEmpty) {
+        payload['data']['visits'] =
+            visits.map((visit) => serializeVisit(visit)).toList();
+      }
+
+      if (orders != null && orders.isNotEmpty) {
+        payload['data']['orders'] =
+            orders.map((order) => serializeOrder(order)).toList();
+      }
+
+      if (locationSamples != null && locationSamples.isNotEmpty) {
+        payload['data']['tracking_locations'] = locationSamples
+            .map((sample) => serializeLocationSample(sample))
+            .toList();
+      }
+
+      if (payments != null && payments.isNotEmpty) {
+        payload['data']['payments'] =
+            payments.map((payment) => serializePayment(payment)).toList();
+      }
+
+      if (routes != null && routes.isNotEmpty) {
+        payload['data']['routes'] =
+            routes.map((route) => serializeRoutePlan(route)).toList();
+      }
+
+      return payload;
+    } catch (e) {
+      logger.e('Create batch sync payload error: $e');
+      rethrow;
+    }
+  }
+
+  /// Parse batch sync response
+  static Map<String, List<dynamic>> parseBatchSyncResponse(
+      Map<String, dynamic> response) {
+    try {
+      final result = <String, List<dynamic>>{};
+
+      if (response['data'] != null) {
+        final data = response['data'] as Map<String, dynamic>;
+
+        if (data['customers'] != null) {
+          result['customers'] = (data['customers'] as List)
+              .map((item) => deserializeCustomer(item))
+              .toList();
+        }
+
+        if (data['visits'] != null) {
+          result['visits'] = (data['visits'] as List)
+              .map((item) => deserializeVisit(item))
+              .toList();
+        }
+
+        if (data['orders'] != null) {
+          result['orders'] = (data['orders'] as List)
+              .map((item) => deserializeOrder(item))
+              .toList();
+        }
+
+        if (data['tracking_locations'] != null) {
+          result['tracking_locations'] = (data['tracking_locations'] as List)
+              .map((item) => deserializeLocationSample(item))
+              .toList();
+        }
+
+        if (data['payments'] != null) {
+          result['payments'] = (data['payments'] as List)
+              .map((item) => deserializePayment(item))
+              .toList();
+        }
+      }
+
+      return result;
+    } catch (e) {
+      logger.e('Parse batch sync response error: $e');
+      rethrow;
+    }
+  }
+
+  /// Validate sync data integrity
+  static bool validateSyncData(Map<String, dynamic> data, String dataType) {
+    try {
+      switch (dataType) {
+        case 'customer':
+          return data.containsKey('id') &&
+              data.containsKey('name') &&
+              data.containsKey('company_id');
+        case 'visit':
+          return data.containsKey('id') &&
+              data.containsKey('customer_id') &&
+              data.containsKey('purpose');
+        case 'order':
+          return data.containsKey('id') &&
+              data.containsKey('customer_id') &&
+              data.containsKey('status');
+        case 'location_sample':
+          return data.containsKey('user_id') &&
+              data.containsKey('latitude') &&
+              data.containsKey('longitude');
+        case 'payment':
+          return data.containsKey('id') &&
+              data.containsKey('amount') &&
+              data.containsKey('paid_at');
+        default:
+          return false;
+      }
+    } catch (e) {
+      logger.e('Validate sync data error: $e');
+      return false;
+    }
+  }
+
+  /// Clean sync metadata from data
+  static Map<String, dynamic> cleanSyncMetadata(Map<String, dynamic> data) {
+    final cleanData = Map<String, dynamic>.from(data);
+    cleanData.removeWhere((key, value) => key.startsWith('sync_'));
+    cleanData.remove('local_id');
+    return cleanData;
+  }
+
+  /// Generate sync diff
+  static Map<String, dynamic> generateSyncDiff({
+    required Map<String, dynamic> localData,
+    required Map<String, dynamic> serverData,
+  }) {
+    final diff = <String, dynamic>{};
+
+    localData.forEach((key, localValue) {
+      final serverValue = serverData[key];
+
+      if (serverValue == null) {
+        diff[key] = {'action': 'add', 'value': localValue};
+      } else if (localValue != serverValue) {
+        diff[key] = {
+          'action': 'update',
+          'old_value': serverValue,
+          'new_value': localValue,
+        };
+      }
+    });
+
+    serverData.forEach((key, serverValue) {
+      if (!localData.containsKey(key)) {
+        diff[key] = {'action': 'remove', 'value': serverValue};
+      }
+    });
+
+    return diff;
+  }
+
+  /// Compress sync data for efficient transfer
+  static String compressSyncData(Map<String, dynamic> data) {
+    try {
+      final jsonString = jsonEncode(data);
+      // In a real implementation, you might use gzip compression
+      return jsonString;
+    } catch (e) {
+      logger.e('Compress sync data error: $e');
+      rethrow;
+    }
+  }
+
+  /// Decompress sync data
+  static Map<String, dynamic> decompressSyncData(String compressedData) {
+    try {
+      // In a real implementation, you might use gzip decompression
+      return jsonDecode(compressedData) as Map<String, dynamic>;
+    } catch (e) {
+      logger.e('Decompress sync data error: $e');
+      rethrow;
+    }
+  }
+}
+
+
+===== lib/services/sync/sync_queue.dart =====
+import 'dart:async';
+import 'dart:convert';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../data/local/hive/boxes.dart';
+import '../../data/repositories/customers_repository.dart';
+import '../../data/repositories/visits_repository.dart';
+import '../../data/repositories/orders_repository.dart';
+import '../../data/repositories/tracking_repository.dart';
+import '../../config/logger.dart';
+import '../../config/app_constants.dart';
+
+enum SyncItemType { customer, visit, order, tracking }
+
+class SyncItem {
+  final String id;
+  final SyncItemType type;
+  final Map<String, dynamic> data;
+  final DateTime createdAt;
+  final int retryCount;
+
+  SyncItem({
+    required this.id,
+    required this.type,
+    required this.data,
+    required this.createdAt,
+    this.retryCount = 0,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type.name,
+        'data': data,
+        'createdAt': createdAt.toIso8601String(),
+        'retryCount': retryCount,
+      };
+
+  factory SyncItem.fromJson(Map<String, dynamic> json) => SyncItem(
+        id: json['id'],
+        type: SyncItemType.values.byName(json['type']),
+        data: json['data'],
+        createdAt: DateTime.parse(json['createdAt']),
+        retryCount: json['retryCount'] ?? 0,
+      );
+}
+
+class SyncQueue {
+  static final SyncQueue _instance = SyncQueue._internal();
+  factory SyncQueue() => _instance;
+  SyncQueue._internal();
+
+  Timer? _syncTimer;
+  bool _isSyncing = false;
+
+  // Repositories
+  late CustomersRepository _customersRepo;
+  late VisitsRepository _visitsRepo;
+  late OrdersRepository _ordersRepo;
+  late TrackingRepository _trackingRepo;
+
+  void initialize({
+    required CustomersRepository customersRepo,
+    required VisitsRepository visitsRepo,
+    required OrdersRepository ordersRepo,
+    required TrackingRepository trackingRepo,
+  }) {
+    _customersRepo = customersRepo;
+    _visitsRepo = visitsRepo;
+    _ordersRepo = ordersRepo;
+    _trackingRepo = trackingRepo;
+
+    _startPeriodicSync();
+  }
+
+  Future<void> addToQueue(SyncItem item) async {
+    try {
+      final box = HiveBoxes.syncQueueBox;
+      await box.put(item.id, item.toJson());
+
+      // Try immediate sync if online
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity != ConnectivityResult.none && !_isSyncing) {
+        unawaited(_processQueue());
+      }
+    } catch (e) {
+      logger.e('Add to sync queue error: $e');
+    }
+  }
+
+  Future<void> _processQueue() async {
+    if (_isSyncing) return;
+
+    try {
+      _isSyncing = true;
+
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity == ConnectivityResult.none) {
+        logger.i('No internet connection, skipping sync');
+        return;
+      }
+
+      final box = HiveBoxes.syncQueueBox;
+      final keys = box.keys.toList();
+
+      for (final key in keys) {
+        final itemData = box.get(key);
+        if (itemData == null) continue;
+
+        try {
+          final item = SyncItem.fromJson(Map<String, dynamic>.from(itemData));
+
+          if (item.retryCount >= AppConstants.maxRetryAttempts) {
+            logger.w('Max retry attempts reached for sync item ${item.id}');
+            await box.delete(key);
+            continue;
+          }
+
+          final success = await _syncItem(item);
+
+          if (success) {
+            await box.delete(key);
+            logger.d('Synced item ${item.id} successfully');
+          } else {
+            // Increment retry count
+            final updatedItem = SyncItem(
+              id: item.id,
+              type: item.type,
+              data: item.data,
+              createdAt: item.createdAt,
+              retryCount: item.retryCount + 1,
+            );
+            await box.put(key, updatedItem.toJson());
+          }
+        } catch (e) {
+          logger.e('Process sync item error: $e');
+        }
+      }
+    } catch (e) {
+      logger.e('Process sync queue error: $e');
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  Future<bool> _syncItem(SyncItem item) async {
+    try {
+      switch (item.type) {
+        case SyncItemType.customer:
+          // Handle customer sync
+          break;
+        case SyncItemType.visit:
+          // Handle visit sync
+          break;
+        case SyncItemType.order:
+          // Handle order sync
+          break;
+        case SyncItemType.tracking:
+          await _trackingRepo.syncPendingLocations();
+          break;
+      }
+      return true;
+    } catch (e) {
+      logger.e('Sync item ${item.id} error: $e');
+      return false;
+    }
+  }
+
+  void _startPeriodicSync() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(AppConstants.syncInterval, (_) {
+      if (!_isSyncing) {
+        unawaited(_processQueue());
+      }
+    });
+  }
+
+  Future<int> getPendingCount() async {
+    return HiveBoxes.syncQueueBox.length;
+  }
+
+  void dispose() {
+    _syncTimer?.cancel();
+    _locationSubscription?.cancel();
+  }
+}
+
+
+===== lib/services/sync/sync_worker.dart =====
+import 'dart:async';
+import 'dart:isolate';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../config/logger.dart';
+import '../../config/app_constants.dart';
+import '../../data/repositories/customers_repository.dart';
+import '../../data/repositories/visits_repository.dart';
+import '../../data/repositories/orders_repository.dart';
+import '../../data/repositories/tracking_repository.dart';
+import '../../data/repositories/payments_repository.dart';
+import 'sync_queue.dart';
+
+enum SyncStatus {
+  idle,
+  syncing,
+  success,
+  error,
+  paused,
+}
+
+class SyncWorker {
+  static final SyncWorker _instance = SyncWorker._internal();
+  factory SyncWorker() => _instance;
+  SyncWorker._internal();
+
+  Timer? _syncTimer;
+  StreamController<SyncStatus>? _statusController;
+  StreamController<SyncProgress>? _progressController;
+
+  bool _isInitialized = false;
+  bool _isSyncing = false;
+  SyncStatus _currentStatus = SyncStatus.idle;
+
+  // Repositories
+  late CustomersRepository _customersRepo;
+  late VisitsRepository _visitsRepo;
+  late OrdersRepository _ordersRepo;
+  late TrackingRepository _trackingRepo;
+  late PaymentsRepository _paymentsRepo;
+  late SyncQueue _syncQueue;
+
+  Stream<SyncStatus> get statusStream =>
+      _statusController?.stream ?? const Stream.empty();
+  Stream<SyncProgress> get progressStream =>
+      _progressController?.stream ?? const Stream.empty();
+
+  SyncStatus get currentStatus => _currentStatus;
+  bool get isSyncing => _isSyncing;
+
+  Future<void> initialize({
+    required CustomersRepository customersRepo,
+    required VisitsRepository visitsRepo,
+    required OrdersRepository ordersRepo,
+    required TrackingRepository trackingRepo,
+    required PaymentsRepository paymentsRepo,
+    required SyncQueue syncQueue,
+  }) async {
+    if (_isInitialized) return;
+
+    _customersRepo = customersRepo;
+    _visitsRepo = visitsRepo;
+    _ordersRepo = ordersRepo;
+    _trackingRepo = trackingRepo;
+    _paymentsRepo = paymentsRepo;
+    _syncQueue = syncQueue;
+
+    _statusController = StreamController<SyncStatus>.broadcast();
+    _progressController = StreamController<SyncProgress>.broadcast();
+
+    _startPeriodicSync();
+    _listenToConnectivityChanges();
+
+    _isInitialized = true;
+    logger.i('SyncWorker initialized');
+  }
+
+  void _startPeriodicSync() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(AppConstants.syncInterval, (_) {
+      if (!_isSyncing) {
+        syncNow();
+      }
+    });
+  }
+
+  void _listenToConnectivityChanges() {
+    Connectivity().onConnectivityChanged.listen((connectivity) {
+      if (connectivity != ConnectivityResult.none && !_isSyncing) {
+        // Connection restored, try to sync
+        syncNow();
+      }
+    });
+  }
+
+  Future<void> syncNow({bool force = false}) async {
+    if (_isSyncing && !force) {
+      logger.d('Sync already in progress');
+      return;
+    }
+
+    if (!await _isOnline()) {
+      _updateStatus(SyncStatus.paused);
+      logger.d('No internet connection, sync paused');
+      return;
+    }
+
+    try {
+      _isSyncing = true;
+      _updateStatus(SyncStatus.syncing);
+      _updateProgress(SyncProgress(
+          current: 0, total: 5, operation: 'Iniciando sincronización...'));
+
+      logger.i('Starting sync process');
+
+      // 1. Sync pending visits
+      _updateProgress(SyncProgress(
+          current: 1, total: 5, operation: 'Sincronizando visitas...'));
+      await _visitsRepo.syncPendingVisits();
+
+      // 2. Sync pending orders
+      _updateProgress(SyncProgress(
+          current: 2, total: 5, operation: 'Sincronizando pedidos...'));
+      await _ordersRepo.syncPendingOrders();
+
+      // 3. Sync tracking locations
+      _updateProgress(SyncProgress(
+          current: 3, total: 5, operation: 'Sincronizando ubicaciones...'));
+      await _trackingRepo.syncPendingLocations();
+
+      // 4. Sync payments
+      _updateProgress(SyncProgress(
+          current: 4, total: 5, operation: 'Sincronizando pagos...'));
+      // await _paymentsRepo.syncPendingPayments();
+
+      // 5. Process sync queue
+      _updateProgress(
+          SyncProgress(current: 5, total: 5, operation: 'Finalizando...'));
+      // Additional sync queue processing if needed
+
+      _updateStatus(SyncStatus.success);
+      _updateProgress(SyncProgress(
+          current: 5, total: 5, operation: 'Sincronización completada'));
+
+      logger.i('Sync completed successfully');
+    } catch (e) {
+      logger.e('Sync error: $e');
+      _updateStatus(SyncStatus.error);
+      _updateProgress(SyncProgress(
+          current: 0, total: 5, operation: 'Error en sincronización'));
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  Future<void> syncSpecificData(SyncDataType dataType) async {
+    if (!await _isOnline()) {
+      throw Exception('No internet connection');
+    }
+
+    try {
+      _updateStatus(SyncStatus.syncing);
+
+      switch (dataType) {
+        case SyncDataType.visits:
+          _updateProgress(SyncProgress(
+              current: 1, total: 1, operation: 'Sincronizando visitas...'));
+          await _visitsRepo.syncPendingVisits();
+          break;
+        case SyncDataType.orders:
+          _updateProgress(SyncProgress(
+              current: 1, total: 1, operation: 'Sincronizando pedidos...'));
+          await _ordersRepo.syncPendingOrders();
+          break;
+        case SyncDataType.tracking:
+          _updateProgress(SyncProgress(
+              current: 1, total: 1, operation: 'Sincronizando ubicaciones...'));
+          await _trackingRepo.syncPendingLocations();
+          break;
+        case SyncDataType.customers:
+          _updateProgress(SyncProgress(
+              current: 1, total: 1, operation: 'Sincronizando clientes...'));
+          await _customersRepo.getCustomers(forceSync: true);
+          break;
+        case SyncDataType.payments:
+          _updateProgress(SyncProgress(
+              current: 1, total: 1, operation: 'Sincronizando pagos...'));
+          // await _paymentsRepo.syncPendingPayments();
+          break;
+      }
+
+      _updateStatus(SyncStatus.success);
+    } catch (e) {
+      logger.e('Sync specific data error: $e');
+      _updateStatus(SyncStatus.error);
+      rethrow;
+    }
+  }
+
+  Future<SyncStatus> checkPendingSync() async {
+    try {
+      final pendingCount = await _syncQueue.getPendingCount();
+      return pendingCount > 0 ? SyncStatus.paused : SyncStatus.idle;
+    } catch (e) {
+      logger.e('Check pending sync error: $e');
+      return SyncStatus.error;
+    }
+  }
+
+  Future<int> getPendingSyncCount() async {
+    try {
+      return await _syncQueue.getPendingCount();
+    } catch (e) {
+      logger.e('Get pending sync count error: $e');
+      return 0;
+    }
+  }
+
+  void pauseSync() {
+    _syncTimer?.cancel();
+    if (_currentStatus == SyncStatus.syncing) {
+      _updateStatus(SyncStatus.paused);
+    }
+    logger.i('Sync paused');
+  }
+
+  void resumeSync() {
+    _startPeriodicSync();
+    if (_currentStatus == SyncStatus.paused) {
+      _updateStatus(SyncStatus.idle);
+    }
+    logger.i('Sync resumed');
+  }
+
+  Future<void> forceSyncAll() async {
+    await syncNow(force: true);
+  }
+
+  Future<bool> _isOnline() async {
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      return connectivity != ConnectivityResult.none;
+    } catch (e) {
+      logger.e('Check connectivity error: $e');
+      return false;
+    }
+  }
+
+  void _updateStatus(SyncStatus status) {
+    _currentStatus = status;
+    _statusController?.add(status);
+  }
+
+  void _updateProgress(SyncProgress progress) {
+    _progressController?.add(progress);
+  }
+
+  Future<void> runInBackground() async {
+    // This would be used for background sync
+    // Could be implemented with workmanager or similar
+    if (!await _isOnline()) return;
+
+    try {
+      await _trackingRepo.syncPendingLocations();
+      await _visitsRepo.syncPendingVisits();
+    } catch (e) {
+      logger.e('Background sync error: $e');
+    }
+  }
+
+  void dispose() {
+    _syncTimer?.cancel();
+    _statusController?.close();
+    _progressController?.close();
+    _isInitialized = false;
+    logger.i('SyncWorker disposed');
+  }
+}
+
+class SyncProgress {
+  final int current;
+  final int total;
+  final String operation;
+  final double? percentage;
+
+  SyncProgress({
+    required this.current,
+    required this.total,
+    required this.operation,
+    this.percentage,
+  });
+
+  double get calculatedPercentage =>
+      percentage ?? (total > 0 ? (current / total) * 100 : 0);
+
+  @override
+  String toString() {
+    return 'SyncProgress(current: $current, total: $total, operation: $operation, percentage: ${calculatedPercentage.toStringAsFixed(1)}%)';
+  }
+}
+
+enum SyncDataType {
+  visits,
+  orders,
+  customers,
+  tracking,
+  payments,
+}
+
+// Background isolate for sync (if needed)
+class BackgroundSyncIsolate {
+  static void entryPoint(SendPort sendPort) {
+    final receivePort = ReceivePort();
+    sendPort.send(receivePort.sendPort);
+
+    receivePort.listen((dynamic message) async {
+      if (message is Map<String, dynamic>) {
+        final command = message['command'] as String;
+
+        switch (command) {
+          case 'sync_tracking':
+            // Perform tracking sync in background
+            break;
+          case 'sync_visits':
+            // Perform visits sync in background
+            break;
+          case 'stop':
+            Isolate.exit();
+            break;
+        }
+      }
+    });
+  }
+}
+
+
+===== lib/services/notifications/fcm_service.dart =====
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../../config/logger.dart';
+
+class FCMService {
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+
+  static Future<void> initialize() async {
+    // Request permission
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Get FCM token
+    final token = await FirebaseMessaging.instance.getToken();
+    logger.i('FCM Token: $token');
+
+    // Handle foreground messages
+    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+
+    // Handle notification taps
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+    // Handle initial message if app opened from notification
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      _handleNotificationTap(initialMessage);
+    }
+  }
+
+  static Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    logger.i('Foreground message: ${message.messageId}');
+
+    // Show local notification
+    const androidDetails = AndroidNotificationDetails(
+      'default_channel',
+      'Default Channel',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _localNotifications.show(
+      message.hashCode,
+      message.notification?.title ?? 'Arsenal Sell',
+      message.notification?.body ?? '',
+      details,
+      payload: message.data.toString(),
+    );
+  }
+
+  static Future<void> _handleNotificationTap(RemoteMessage message) async {
+    logger.i('Notification tapped: ${message.messageId}');
+
+    // Handle navigation based on message data
+    final data = message.data;
+    if (data.containsKey('route')) {
+      // Navigate to specific route
+      // AppRouter.navigateTo(data['route']);
+    }
+  }
+
+  static Future<void> handleBackgroundMessage(RemoteMessage message) async {
+    logger.i('Background message: ${message.messageId}');
+    // Handle background processing if needed
+  }
+
+  static Future<void> showLocalNotification({
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'local_channel',
+      'Local Notifications',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _localNotifications.show(
+      DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      title,
+      body,
+      details,
+      payload: payload,
+    );
+  }
+}
+
+
+===== lib/services/media/camera_service.dart =====
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import '../../config/logger.dart';
+import '../../config/app_constants.dart';
+
+class CameraService {
+  static final ImagePicker _picker = ImagePicker();
+
+  static Future<File?> takePicture() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      if (image != null) {
+        final file = File(image.path);
+
+        // Check file size
+        final fileSize = await file.length();
+        if (fileSize > AppConstants.maxPhotoSize) {
+          throw Exception(
+              'File size too large. Maximum size is ${AppConstants.maxPhotoSize / (1024 * 1024)}MB');
+        }
+
+        // Move to app directory
+        final appDir = await getApplicationDocumentsDirectory();
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final savedFile =
+            await file.copy(path.join(appDir.path, 'photos', fileName));
+
+        return savedFile;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Take picture error: $e');
+      rethrow;
+    }
+  }
+
+  static Future<File?> pickFromGallery() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      if (image != null) {
+        final file = File(image.path);
+
+        // Check file size
+        final fileSize = await file.length();
+        if (fileSize > AppConstants.maxPhotoSize) {
+          throw Exception(
+              'File size too large. Maximum size is ${AppConstants.maxPhotoSize / (1024 * 1024)}MB');
+        }
+
+        return file;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Pick from gallery error: $e');
+      rethrow;
+    }
+  }
+
+  static Future<List<File>> pickMultipleFromGallery() async {
+    try {
+      final List<XFile> images = await _picker.pickMultiImage(
+        imageQuality: 80,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      final List<File> files = [];
+      for (final image in images) {
+        final file = File(image.path);
+
+        // Check file size
+        final fileSize = await file.length();
+        if (fileSize <= AppConstants.maxPhotoSize) {
+          files.add(file);
+        } else {
+          logger.w('Skipping file ${image.name} - too large');
+        }
+      }
+
+      return files;
+    } catch (e) {
+      logger.e('Pick multiple from gallery error: $e');
+      return [];
+    }
+  }
+}
+
+
+===== lib/services/media/signature_service.dart =====
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:signature/signature.dart';
+import '../../config/logger.dart';
+
+class SignatureService {
+  static Future<Uint8List?> exportSignature(
+      SignatureController controller) async {
+    try {
+      if (controller.isEmpty) {
+        return null;
+      }
+
+      final image = await controller.toPngBytes(
+        height: 300,
+        width: 600,
+      );
+
+      return image;
+    } catch (e) {
+      logger.e('Export signature error: $e');
+      return null;
+    }
+  }
+
+  static SignatureController createController() {
+    return SignatureController(
+      penStrokeWidth: 2,
+      penColor: Colors.black,
+      exportBackgroundColor: Colors.white,
+    );
+  }
+
+  static Widget buildSignaturePad(SignatureController controller) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Signature(
+        controller: controller,
+        backgroundColor: Colors.white,
+        height: 200,
+      ),
+    );
+  }
+}
+
+

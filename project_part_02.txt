@@ -1,0 +1,3120 @@
+(
+                    'Tiempo Est.',
+                    statistics.formattedDuration,
+                    Icons.access_time,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatItem(
+                    'Paradas',
+                    '${statistics.completedStops}/${statistics.totalStops}',
+                    Icons.location_on,
+                  ),
+                ),
+              ],
+            ),
+            if (statistics.totalStops > 0) ...[
+              const SizedBox(height: 16),
+              LinearProgressIndicator(
+                value: statistics.completionPercentage / 100,
+                backgroundColor: AppPalette.textSecondary.withOpacity(0.3),
+                valueColor: AlwaysStoppedAnimation<Color>(AppPalette.success),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${statistics.completionPercentage.toStringAsFixed(1)}% completado',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppPalette.textSecondary,
+                ),
+              ),
+            ],
+            if (onStartNavigation != null) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onStartNavigation,
+                  icon: const Icon(Icons.navigation),
+                  label: const Text('Iniciar Navegación'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppPalette.primary,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: AppPalette.primary, size: 24),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppPalette.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+
+===== lib/features/map/widgets/customer_marker.dart =====
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../../data/models/customers/customer.dart';
+import '../../../data/models/visits/visit.dart';
+import '../../../core/theme/palette.dart';
+
+class CustomerMarkerService {
+  static final Map<String, BitmapDescriptor> _cachedIcons = {};
+
+  /// Create a marker for a customer
+  static Future<Marker> createCustomerMarker({
+    required Customer customer,
+    required VoidCallback onTap,
+    bool hasActiveVisit = false,
+    bool hasUncompletedOrders = false,
+    CustomerStatus status = CustomerStatus.active,
+  }) async {
+    if (customer.latitude == null || customer.longitude == null) {
+      throw ArgumentError('Customer must have valid coordinates');
+    }
+
+    final icon = await _getCustomerIcon(
+      status: status,
+      hasActiveVisit: hasActiveVisit,
+      hasUncompletedOrders: hasUncompletedOrders,
+    );
+
+    return Marker(
+      markerId: MarkerId('customer_${customer.id}'),
+      position: LatLng(customer.latitude!, customer.longitude!),
+      icon: icon,
+      infoWindow: InfoWindow(
+        title: customer.name,
+        snippet: customer.address ?? 'Sin dirección',
+        onTap: onTap,
+      ),
+      onTap: onTap,
+    );
+  }
+
+  /// Create a marker for team member location
+  static Future<Marker> createTeamMemberMarker({
+    required String userId,
+    required String userName,
+    required double latitude,
+    required double longitude,
+    required DateTime lastUpdate,
+    bool isActive = true,
+  }) async {
+    final icon = await _getTeamMemberIcon(isActive: isActive);
+
+    return Marker(
+      markerId: MarkerId('team_$userId'),
+      position: LatLng(latitude, longitude),
+      icon: icon,
+      infoWindow: InfoWindow(
+        title: userName,
+        snippet: 'Actualizado: ${_formatTime(lastUpdate)}',
+      ),
+    );
+  }
+
+  /// Create a marker for visit location
+  static Future<Marker> createVisitMarker({
+    required Visit visit,
+    required VoidCallback onTap,
+  }) async {
+    if (visit.checkinLatitude == null || visit.checkinLongitude == null) {
+      throw ArgumentError('Visit must have check-in coordinates');
+    }
+
+    final icon = await _getVisitIcon(
+      purpose: visit.purpose,
+      isCompleted: visit.finishedAt != null,
+    );
+
+    return Marker(
+      markerId: MarkerId('visit_${visit.id}'),
+      position: LatLng(visit.checkinLatitude!, visit.checkinLongitude!),
+      icon: icon,
+      infoWindow: InfoWindow(
+        title: 'Visita - ${_getVisitPurposeLabel(visit.purpose)}',
+        snippet: visit.customer?.name ?? 'Cliente',
+        onTap: onTap,
+      ),
+      onTap: onTap,
+    );
+  }
+
+  /// Get customer icon based on status
+  static Future<BitmapDescriptor> _getCustomerIcon({
+    required CustomerStatus status,
+    required bool hasActiveVisit,
+    required bool hasUncompletedOrders,
+  }) async {
+    final key =
+        'customer_${status.name}_${hasActiveVisit}_$hasUncompletedOrders';
+
+    if (_cachedIcons.containsKey(key)) {
+      return _cachedIcons[key]!;
+    }
+
+    Color iconColor;
+    IconData iconData = Icons.business;
+
+    if (hasActiveVisit) {
+      iconColor = AppPalette.warning;
+      iconData = Icons.location_on;
+    } else if (hasUncompletedOrders) {
+      iconColor = AppPalette.info;
+      iconData = Icons.shopping_cart;
+    } else {
+      switch (status) {
+        case CustomerStatus.active:
+          iconColor = AppPalette.success;
+          break;
+        case CustomerStatus.inactive:
+          iconColor = AppPalette.textSecondary;
+          break;
+        case CustomerStatus.blocked:
+          iconColor = AppPalette.error;
+          break;
+        case CustomerStatus.prospect:
+          iconColor = AppPalette.primary;
+          break;
+      }
+    }
+
+    final icon = await _createCustomIcon(
+      icon: iconData,
+      color: iconColor,
+      size: 48,
+    );
+
+    _cachedIcons[key] = icon;
+    return icon;
+  }
+
+  /// Get team member icon
+  static Future<BitmapDescriptor> _getTeamMemberIcon({
+    required bool isActive,
+  }) async {
+    final key = 'team_member_$isActive';
+
+    if (_cachedIcons.containsKey(key)) {
+      return _cachedIcons[key]!;
+    }
+
+    final icon = await _createCustomIcon(
+      icon: Icons.person_pin_circle,
+      color: isActive ? AppPalette.vendedor : AppPalette.textSecondary,
+      size: 48,
+    );
+
+    _cachedIcons[key] = icon;
+    return icon;
+  }
+
+  /// Get visit icon based on purpose
+  static Future<BitmapDescriptor> _getVisitIcon({
+    required VisitPurpose purpose,
+    required bool isCompleted,
+  }) async {
+    final key = 'visit_${purpose.name}_$isCompleted';
+
+    if (_cachedIcons.containsKey(key)) {
+      return _cachedIcons[key]!;
+    }
+
+    IconData iconData;
+    Color baseColor;
+
+    switch (purpose) {
+      case VisitPurpose.venta:
+        iconData = Icons.shopping_cart;
+        baseColor = AppPalette.success;
+        break;
+      case VisitPurpose.cobro:
+        iconData = Icons.payment;
+        baseColor = AppPalette.warning;
+        break;
+      case VisitPurpose.entrega:
+        iconData = Icons.local_shipping;
+        baseColor = AppPalette.info;
+        break;
+      case VisitPurpose.auditoria:
+        iconData = Icons.assignment;
+        baseColor = AppPalette.primary;
+        break;
+      case VisitPurpose.devolucion:
+        iconData = Icons.keyboard_return;
+        baseColor = AppPalette.error;
+        break;
+      default:
+        iconData = Icons.location_on;
+        baseColor = AppPalette.textSecondary;
+    }
+
+    final color = isCompleted ? baseColor : baseColor.withOpacity(0.6);
+
+    final icon = await _createCustomIcon(
+      icon: iconData,
+      color: color,
+      size: 40,
+    );
+
+    _cachedIcons[key] = icon;
+    return icon;
+  }
+
+  /// Create custom icon from IconData
+  static Future<BitmapDescriptor> _createCustomIcon({
+    required IconData icon,
+    required Color color,
+    required double size,
+  }) async {
+    final pictureRecorder = ui.PictureRecorder();
+    final canvas = Canvas(pictureRecorder);
+
+    // Draw background circle
+    final backgroundPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+
+    final center = Offset(size / 2, size / 2);
+    final radius = size / 2 - 2;
+
+    canvas.drawCircle(center, radius, backgroundPaint);
+    canvas.drawCircle(center, radius, borderPaint);
+
+    // Draw icon
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: String.fromCharCode(icon.codePoint),
+      style: TextStyle(
+        fontSize: size * 0.6,
+        fontFamily: icon.fontFamily,
+        color: color,
+      ),
+    );
+
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        (size - textPainter.width) / 2,
+        (size - textPainter.height) / 2,
+      ),
+    );
+
+    final picture = pictureRecorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+
+    return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+  }
+
+  /// Create cluster marker for multiple customers
+  static Future<BitmapDescriptor> createClusterIcon({
+    required int count,
+    required Color color,
+  }) async {
+    final key = 'cluster_${count}_${color.value}';
+
+    if (_cachedIcons.containsKey(key)) {
+      return _cachedIcons[key]!;
+    }
+
+    const size = 60.0;
+    final pictureRecorder = ui.PictureRecorder();
+    final canvas = Canvas(pictureRecorder);
+
+    // Draw background circle
+    final backgroundPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+
+    final center = Offset(size / 2, size / 2);
+    final radius = size / 2 - 2;
+
+    canvas.drawCircle(center, radius, backgroundPaint);
+    canvas.drawCircle(center, radius, borderPaint);
+
+    // Draw count text
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: count.toString(),
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        color: Colors.white,
+      ),
+    );
+
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        (size - textPainter.width) / 2,
+        (size - textPainter.height) / 2,
+      ),
+    );
+
+    final picture = pictureRecorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+
+    final icon = BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+    _cachedIcons[key] = icon;
+    return icon;
+  }
+
+  /// Get geofence circle overlay
+  static Circle createGeofenceCircle({
+    required String id,
+    required LatLng center,
+    required double radiusMeters,
+    Color? strokeColor,
+    Color? fillColor,
+  }) {
+    return Circle(
+      circleId: CircleId('geofence_$id'),
+      center: center,
+      radius: radiusMeters,
+      strokeWidth: 2,
+      strokeColor: strokeColor ?? AppPalette.primary,
+      fillColor: (fillColor ?? AppPalette.primary).withOpacity(0.2),
+    );
+  }
+
+  /// Clear cached icons
+  static void clearCache() {
+    _cachedIcons.clear();
+  }
+
+  static String _getVisitPurposeLabel(VisitPurpose purpose) {
+    switch (purpose) {
+      case VisitPurpose.venta:
+        return 'Venta';
+      case VisitPurpose.cobro:
+        return 'Cobro';
+      case VisitPurpose.entrega:
+        return 'Entrega';
+      case VisitPurpose.visita:
+        return 'Visita';
+      case VisitPurpose.auditoria:
+        return 'Auditoría';
+      case VisitPurpose.devolucion:
+        return 'Devolución';
+      case VisitPurpose.otro:
+        return 'Otro';
+    }
+  }
+
+  static String _formatTime(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+enum CustomerStatus {
+  active,
+  inactive,
+  blocked,
+  prospect,
+}
+
+
+===== lib/features/map/bloc/map_cubit.dart =====
+import 'dart:async';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../../data/models/geo/location_sample.dart';
+import '../../../data/models/customers/customer.dart';
+import '../../../services/location/location_service.dart';
+import '../../../data/repositories/tracking_repository.dart';
+import '../../../config/logger.dart';
+
+part 'map_state.dart';
+part 'map_cubit.freezed.dart';
+
+class MapCubit extends Cubit<MapState> {
+  final LocationService _locationService;
+  final TrackingRepository _trackingRepository;
+
+  MapCubit(this._locationService, this._trackingRepository)
+      : super(const MapState.initial());
+
+  StreamSubscription<Position>? _locationSubscription;
+  GoogleMapController? _mapController;
+
+  Future<void> initializeMap() async {
+    emit(const MapState.loading());
+
+    try {
+      final hasPermission = await _locationService.requestPermissions();
+      if (!hasPermission) {
+        emit(const MapState.error('Permisos de ubicación requeridos'));
+        return;
+      }
+
+      final position = await _locationService.getCurrentLocation();
+      if (position == null) {
+        emit(const MapState.error('No se pudo obtener la ubicación'));
+        return;
+      }
+
+      emit(MapState.ready(
+        currentPosition: LatLng(position.latitude, position.longitude),
+        customers: [],
+        teamLocations: [],
+      ));
+
+      _startLocationTracking();
+    } catch (e) {
+      logger.e('Initialize map error: $e');
+      emit(MapState.error(e.toString()));
+    }
+  }
+
+  void _startLocationTracking() {
+    _locationSubscription = _locationService.locationStream.listen(
+      (position) {
+        final currentState = state;
+        if (currentState is MapReady) {
+          final newPosition = LatLng(position.latitude, position.longitude);
+          emit(currentState.copyWith(currentPosition: newPosition));
+
+          // Save tracking data
+          _saveLocationSample(position);
+
+          // Update map camera
+          _mapController?.animateCamera(
+            CameraUpdate.newLatLng(newPosition),
+          );
+        }
+      },
+      onError: (error) {
+        logger.e('Location tracking error: $error');
+      },
+    );
+  }
+
+  Future<void> _saveLocationSample(Position position) async {
+    try {
+      // This would get the current user ID from auth
+      const userId = 'current_user_id'; // TODO: Get from auth
+      const companyId = 'current_company_id'; // TODO: Get from auth
+
+      final sample = LocationSample(
+        id: DateTime.now().millisecondsSinceEpoch,
+        companyId: companyId,
+        userId: userId,
+        at: DateTime.now(),
+        latitude: position.latitude,
+        longitude: position.longitude,
+        speedMs: position.speed,
+        accuracyM: position.accuracy,
+      );
+
+      await _trackingRepository.saveLocationSample(sample);
+    } catch (e) {
+      logger.e('Save location sample error: $e');
+    }
+  }
+
+  void updateCustomers(List<Customer> customers) {
+    final currentState = state;
+    if (currentState is MapReady) {
+      emit(currentState.copyWith(customers: customers));
+    }
+  }
+
+  void updateTeamLocations(List<LocationSample> locations) {
+    final currentState = state;
+    if (currentState is MapReady) {
+      emit(currentState.copyWith(teamLocations: locations));
+    }
+  }
+
+  void setMapController(GoogleMapController controller) {
+    _mapController = controller;
+  }
+
+  @override
+  Future<void> close() {
+    _locationSubscription?.cancel();
+    return super.close();
+  }
+}
+
+@freezed
+class MapState with _$MapState {
+  const factory MapState.initial() = _Initial;
+  const factory MapState.loading() = _Loading;
+  const factory MapState.ready({
+    required LatLng currentPosition,
+    required List<Customer> customers,
+    required List<LocationSample> teamLocations,
+  }) = MapReady;
+  const factory MapState.error(String message) = _Error;
+}
+
+
+===== lib/features/orders/pages/cart_page.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/palette.dart';
+import '../../../data/models/sales/order.dart';
+import '../bloc/order_cubit.dart';
+
+class CartPage extends StatelessWidget {
+  final String customerId;
+
+  const CartPage({
+    super.key,
+    required this.customerId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Carrito de Compras'),
+        actions: [
+          BlocBuilder<OrderCubit, OrderState>(
+            builder: (context, state) {
+              return TextButton(
+                onPressed: state.maybeWhen(
+                  editing: (order) =>
+                      order.items.isNotEmpty ? () => _saveOrder(context) : null,
+                  orElse: () => null,
+                ),
+                child: const Text(
+                  'Guardar',
+                  style: TextStyle(color: Colors.white),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: BlocConsumer<OrderCubit, OrderState>(
+        listener: (context, state) {
+          state.whenOrNull(
+            saved: (order) {
+              context.pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Pedido guardado exitosamente'),
+                  backgroundColor: AppPalette.success,
+                ),
+              );
+            },
+            error: (message) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(message),
+                  backgroundColor: AppPalette.error,
+                ),
+              );
+            },
+          );
+        },
+        builder: (context, state) {
+          return state.when(
+            initial: () {
+              // Auto-create new order
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                context.read<OrderCubit>().createNewOrder(customerId);
+              });
+              return const Center(child: CircularProgressIndicator());
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            editing: (order) => _buildCartContent(context, order),
+            saving: () => const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Guardando pedido...'),
+                ],
+              ),
+            ),
+            saved: (order) => _buildOrderSaved(order),
+            error: (message) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: AppPalette.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      floatingActionButton: BlocBuilder<OrderCubit, OrderState>(
+        builder: (context, state) {
+          return state.maybeWhen(
+            editing: (order) => FloatingActionButton(
+              onPressed: () => _showProductSelector(context),
+              child: const Icon(Icons.add),
+            ),
+            orElse: () => const SizedBox.shrink(),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCartContent(BuildContext context, Order order) {
+    if (order.items.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.shopping_cart_outlined,
+              size: 80,
+              color: AppPalette.textSecondary,
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Carrito vacío',
+              style: TextStyle(
+                fontSize: 18,
+                color: AppPalette.textSecondary,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Agrega productos usando el botón +',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppPalette.textDisabled,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // Items list
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: order.items.length,
+            itemBuilder: (context, index) {
+              final item = order.items[index];
+              return CartItemTile(
+                item: item,
+                onQuantityChanged: (newQty) {
+                  context
+                      .read<OrderCubit>()
+                      .updateItemQuantity(item.id, newQty);
+                },
+                onRemove: () {
+                  context.read<OrderCubit>().removeItem(item.id);
+                },
+              );
+            },
+          ),
+        ),
+
+        // Order summary
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              _buildSummaryRow(
+                  'Subtotal:', '\$${order.subtotal.toStringAsFixed(2)}'),
+              if (order.discountTotal > 0) ...[
+                const SizedBox(height: 4),
+                _buildSummaryRow('Descuento:',
+                    '-\$${order.discountTotal.toStringAsFixed(2)}'),
+              ],
+              if (order.taxTotal > 0) ...[
+                const SizedBox(height: 4),
+                _buildSummaryRow(
+                    'Impuestos:', '\$${order.taxTotal.toStringAsFixed(2)}'),
+              ],
+              const Divider(),
+              _buildSummaryRow(
+                'Total:',
+                '\$${order.grandTotal.toStringAsFixed(2)}',
+                isTotal: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value, {bool isTotal = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: isTotal ? 18 : 14,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isTotal ? 18 : 14,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+            color: isTotal ? AppPalette.primary : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOrderSaved(Order order) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.check_circle_outline,
+            size: 80,
+            color: AppPalette.success,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Pedido Guardado',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Total: \$${order.grandTotal.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 18,
+              color: AppPalette.primary,
+            ),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton(
+            onPressed: () => context.go('/dashboard'),
+            child: const Text('Volver al Inicio'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProductSelector(BuildContext context) {
+    // TODO: Implement product selector
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const ProductSelectorSheet(),
+    );
+  }
+
+  void _saveOrder(BuildContext context) {
+    context.read<OrderCubit>().saveOrder();
+  }
+}
+
+class CartItemTile extends StatelessWidget {
+  final OrderItem item;
+  final Function(double) onQuantityChanged;
+  final VoidCallback onRemove;
+
+  const CartItemTile({
+    super.key,
+    required this.item,
+    required this.onQuantityChanged,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            // Product info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.product?.name ?? 'Producto',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Precio: \$${item.price.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: AppPalette.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Quantity controls
+            Row(
+              children: [
+                IconButton(
+                  onPressed: item.qty > 1
+                      ? () => onQuantityChanged(item.qty - 1)
+                      : null,
+                  icon: const Icon(Icons.remove_circle_outline),
+                  color: AppPalette.error,
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    item.qty.toStringAsFixed(0),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => onQuantityChanged(item.qty + 1),
+                  icon: const Icon(Icons.add_circle_outline),
+                  color: AppPalette.success,
+                ),
+              ],
+            ),
+
+            // Total and remove
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '\$${item.total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                IconButton(
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.delete_outline),
+                  color: AppPalette.error,
+                  iconSize: 20,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ProductSelectorSheet extends StatelessWidget {
+  const ProductSelectorSheet({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Seleccionar Producto',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const Divider(),
+
+          // Search
+          TextField(
+            decoration: const InputDecoration(
+              hintText: 'Buscar productos...',
+              prefixIcon: Icon(Icons.search),
+            ),
+            onChanged: (value) {
+              // TODO: Implement product search
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Products list
+          Expanded(
+            child: ListView.builder(
+              itemCount: 10, // TODO: Use real products
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text('Producto $index'),
+                  subtitle: Text('\$${(index + 1) * 10}.00'),
+                  trailing: ElevatedButton(
+                    onPressed: () {
+                      // TODO: Add product to cart
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Agregar'),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+===== lib/features/orders/bloc/order_cubit.dart =====
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import '../../../data/models/sales/order.dart';
+import '../../../data/models/sales/product.dart';
+import '../../../data/repositories/orders_repository.dart';
+import '../../../config/logger.dart';
+
+part 'order_state.dart';
+part 'order_cubit.freezed.dart';
+
+class OrderCubit extends Cubit<OrderState> {
+  final OrdersRepository _repository;
+
+  OrderCubit(this._repository) : super(const OrderState.initial());
+
+  void createNewOrder(String customerId) {
+    final order = Order(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      companyId: 'current_company_id', // TODO: Get from auth
+      customerId: customerId,
+      status: OrderStatus.draft,
+      items: [],
+    );
+
+    emit(OrderState.editing(order));
+  }
+
+  void addItem(Product product, double quantity, double price) {
+    final currentState = state;
+    if (currentState is OrderEditing) {
+      final newItem = OrderItem(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        orderId: currentState.order.id,
+        productId: product.id,
+        qty: quantity,
+        price: price,
+        total: quantity * price,
+        product: product,
+      );
+
+      final updatedItems = [...currentState.order.items, newItem];
+      final updatedOrder = currentState.order.copyWith(items: updatedItems);
+      final recalculatedOrder = _recalculateOrderTotals(updatedOrder);
+
+      emit(OrderState.editing(recalculatedOrder));
+    }
+  }
+
+  void removeItem(String itemId) {
+    final currentState = state;
+    if (currentState is OrderEditing) {
+      final updatedItems =
+          currentState.order.items.where((item) => item.id != itemId).toList();
+
+      final updatedOrder = currentState.order.copyWith(items: updatedItems);
+      final recalculatedOrder = _recalculateOrderTotals(updatedOrder);
+
+      emit(OrderState.editing(recalculatedOrder));
+    }
+  }
+
+  void updateItemQuantity(String itemId, double newQuantity) {
+    final currentState = state;
+    if (currentState is OrderEditing) {
+      final updatedItems = currentState.order.items.map((item) {
+        if (item.id == itemId) {
+          return item.copyWith(
+            qty: newQuantity,
+            total: newQuantity * item.price,
+          );
+        }
+        return item;
+      }).toList();
+
+      final updatedOrder = currentState.order.copyWith(items: updatedItems);
+      final recalculatedOrder = _recalculateOrderTotals(updatedOrder);
+
+      emit(OrderState.editing(recalculatedOrder));
+    }
+  }
+
+  Future<void> saveOrder() async {
+    try {
+      final currentState = state;
+      if (currentState is OrderEditing) {
+        emit(const OrderState.saving());
+
+        final savedOrder = await _repository.createOrder(currentState.order);
+        emit(OrderState.saved(savedOrder));
+      }
+    } catch (e) {
+      logger.e('Save order error: $e');
+      emit(OrderState.error(e.toString()));
+    }
+  }
+
+  Order _recalculateOrderTotals(Order order) {
+    double subtotal = 0;
+    double taxTotal = 0;
+    double discountTotal = 0;
+
+    for (final item in order.items) {
+      subtotal += item.total;
+      discountTotal += item.discount;
+      // Tax calculation would be based on product tax rate
+      if (item.product != null) {
+        taxTotal += (item.total * item.product!.tax / 100);
+      }
+    }
+
+    final grandTotal = subtotal + taxTotal - discountTotal;
+
+    return order.copyWith(
+      subtotal: subtotal,
+      taxTotal: taxTotal,
+      discountTotal: discountTotal,
+      grandTotal: grandTotal,
+    );
+  }
+}
+
+@freezed
+class OrderState with _$OrderState {
+  const factory OrderState.initial() = _Initial;
+  const factory OrderState.loading() = _Loading;
+  const factory OrderState.editing(Order order) = OrderEditing;
+  const factory OrderState.saving() = _Saving;
+  const factory OrderState.saved(Order order) = _Saved;
+  const factory OrderState.error(String message) = _Error;
+}
+
+
+===== lib/features/supervisor/pages/supervisor_dashboard_page.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../../core/theme/palette.dart';
+import '../../../data/models/geo/location_sample.dart';
+import '../../../data/models/visits/visit.dart';
+import '../../../data/models/auth/user_profile.dart';
+import '../bloc/supervisor_cubit.dart';
+
+class SupervisorDashboardPage extends StatefulWidget {
+  const SupervisorDashboardPage({super.key});
+
+  @override
+  State<SupervisorDashboardPage> createState() =>
+      _SupervisorDashboardPageState();
+}
+
+class _SupervisorDashboardPageState extends State<SupervisorDashboardPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  GoogleMapController? _mapController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    context.read<SupervisorCubit>().initializeDashboard();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Panel de Supervisor'),
+        backgroundColor: AppPalette.supervisor,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => context.read<SupervisorCubit>().refreshData(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.message),
+            onPressed: _showTeamMessageDialog,
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          tabs: const [
+            Tab(text: 'Resumen', icon: Icon(Icons.dashboard)),
+            Tab(text: 'Equipo', icon: Icon(Icons.people)),
+            Tab(text: 'Reportes', icon: Icon(Icons.analytics)),
+          ],
+        ),
+      ),
+      body: BlocConsumer<SupervisorCubit, SupervisorState>(
+        listener: (context, state) {
+          state.whenOrNull(
+            error: (message) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(message),
+                  backgroundColor: AppPalette.error,
+                ),
+              );
+            },
+          );
+        },
+        builder: (context, state) {
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildOverviewTab(state),
+              _buildTeamTab(state),
+              _buildReportsTab(state),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildOverviewTab(SupervisorState state) {
+    return state.when(
+      initial: () => const Center(child: Text('Inicializando...')),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      loaded: (teamLocations, todayStats, activeVisits, teamMembers,
+              isRefreshing, isLoadingMember, selectedMemberDetails) =>
+          RefreshIndicator(
+        onRefresh: () => context.read<SupervisorCubit>().refreshData(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Stats Cards
+              _buildStatsCards(todayStats),
+              const SizedBox(height: 16),
+
+              // Team Map
+              _buildTeamMap(teamLocations),
+              const SizedBox(height: 16),
+
+              // Active Visits
+              _buildActiveVisitsSection(activeVisits),
+            ],
+          ),
+        ),
+      ),
+      orElse: () => const Center(child: Text('Error cargando datos')),
+    );
+  }
+
+  Widget _buildTeamTab(SupervisorState state) {
+    return state.when(
+      loaded: (teamLocations, todayStats, activeVisits, teamMembers,
+              isRefreshing, isLoadingMember, selectedMemberDetails) =>
+          Column(
+        children: [
+          // Team member list
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: teamLocations.length,
+              itemBuilder: (context, index) {
+                final location = teamLocations[index];
+                return TeamMemberCard(
+                  location: location,
+                  onTap: () => context
+                      .read<SupervisorCubit>()
+                      .loadTeamMember(location.userId),
+                );
+              },
+            ),
+          ),
+
+          // Member details panel
+          if (selectedMemberDetails != null)
+            _buildMemberDetailsPanel(selectedMemberDetails),
+        ],
+      ),
+      orElse: () => const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _buildReportsTab(SupervisorState state) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Report period selector
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Generar Reporte',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _generateReport(ReportPeriod.today),
+                          child: const Text('Hoy'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _generateReport(ReportPeriod.week),
+                          child: const Text('Esta Semana'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _generateReport(ReportPeriod.month),
+                          child: const Text('Este Mes'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Report display
+          Expanded(
+            child: state.when(
+              reportLoaded: (report) => _buildReportView(report),
+              loadingReport: () =>
+                  const Center(child: CircularProgressIndicator()),
+              orElse: () => const Center(
+                child: Text('Selecciona un período para generar el reporte'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsCards(SupervisorStats stats) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      childAspectRatio: 1.5,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+      children: [
+        _buildStatCard(
+          'Visitas Hoy',
+          '${stats.completedVisits}/${stats.totalVisits}',
+          Icons.location_on,
+          AppPalette.primary,
+        ),
+        _buildStatCard(
+          'Pedidos',
+          '${stats.totalOrders}',
+          Icons.shopping_cart,
+          AppPalette.success,
+        ),
+        _buildStatCard(
+          'Ventas',
+          '\$${stats.totalSales.toStringAsFixed(0)}',
+          Icons.attach_money,
+          AppPalette.warning,
+        ),
+        _buildStatCard(
+          'Equipo Activo',
+          '${stats.teamMembersActive}',
+          Icons.people,
+          AppPalette.info,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(
+      String title, String value, IconData icon, Color color) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppPalette.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamMap(List<LocationSample> teamLocations) {
+    return SizedBox(
+      height: 300,
+      child: Card(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: GoogleMap(
+            onMapCreated: (controller) => _mapController = controller,
+            initialCameraPosition: const CameraPosition(
+              target: LatLng(19.4326, -99.1332), // Mexico City
+              zoom: 11,
+            ),
+            markers: teamLocations.map((location) {
+              return Marker(
+                markerId: MarkerId(location.userId),
+                position: LatLng(location.latitude, location.longitude),
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueBlue,
+                ),
+                infoWindow: InfoWindow(
+                  title: 'Equipo ${location.userId}',
+                  snippet: 'Actualizado: ${_formatTime(location.at)}',
+                ),
+              );
+            }).toSet(),
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveVisitsSection(List<Visit> activeVisits) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Visitas Activas',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${activeVisits.length}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppPalette.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (activeVisits.isEmpty)
+              const Center(
+                child: Text(
+                  'No hay visitas activas',
+                  style: TextStyle(color: AppPalette.textSecondary),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: activeVisits.length,
+                separatorBuilder: (context, index) => const Divider(),
+                itemBuilder: (context, index) {
+                  final visit = activeVisits[index];
+                  return ActiveVisitTile(visit: visit);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMemberDetailsPanel(TeamMemberDetails memberDetails) {
+    return Container(
+      height: 300,
+      margin: const EdgeInsets.all(16),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    memberDetails.user.fullName ?? 'Usuario',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () =>
+                        context.read<SupervisorCubit>().clearSelectedMember(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildMemberStat(
+                      'Visitas',
+                      '${memberDetails.performance.visitsToday}',
+                      Icons.location_on,
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildMemberStat(
+                      'Pedidos',
+                      '${memberDetails.performance.ordersToday}',
+                      Icons.shopping_cart,
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildMemberStat(
+                      'Ventas',
+                      '\$${memberDetails.performance.salesAmount.toStringAsFixed(0)}',
+                      Icons.attach_money,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMemberStat(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: AppPalette.primary),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppPalette.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReportView(PerformanceReport report) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Reporte de Rendimiento',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    report.period,
+                    style: const TextStyle(
+                      color: AppPalette.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildReportStat(
+                          'Total Visitas',
+                          '${report.totalVisits}',
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildReportStat(
+                          'Pedidos',
+                          '${report.totalOrders}',
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildReportStat(
+                          'Ventas',
+                          '\$${report.totalSales.toStringAsFixed(0)}',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Top performers
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Mejores Vendedores',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: report.topPerformers.length,
+                    separatorBuilder: (context, index) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final performer = report.topPerformers[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: AppPalette.primary,
+                          child: Text('${index + 1}'),
+                        ),
+                        title: Text(performer.userName),
+                        subtitle: Text(
+                            '${performer.visits} visitas • ${performer.orders} pedidos'),
+                        trailing: Text(
+                          '\$${performer.sales.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppPalette.success,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportStat(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: AppPalette.primary,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppPalette.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  void _generateReport(ReportPeriod period) {
+    final now = DateTime.now();
+    DateTime startDate;
+    DateTime endDate = now;
+
+    switch (period) {
+      case ReportPeriod.today:
+        startDate = DateTime(now.year, now.month, now.day);
+        break;
+      case ReportPeriod.week:
+        startDate = now.subtract(Duration(days: now.weekday - 1));
+        break;
+      case ReportPeriod.month:
+        startDate = DateTime(now.year, now.month, 1);
+        break;
+    }
+
+    context.read<SupervisorCubit>().loadPerformanceReport(
+          startDate: startDate,
+          endDate: endDate,
+        );
+  }
+
+  void _showTeamMessageDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => TeamMessageDialog(),
+    );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class TeamMemberCard extends StatelessWidget {
+  final LocationSample location;
+  final VoidCallback onTap;
+
+  const TeamMemberCard({
+    super.key,
+    required this.location,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: AppPalette.success,
+          child: const Icon(Icons.person, color: Colors.white),
+        ),
+        title: Text('Usuario ${location.userId}'),
+        subtitle: Text('Última actualización: ${_formatTime(location.at)}'),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.location_on,
+              color: AppPalette.success,
+            ),
+            Text(
+              '${location.accuracyM?.toStringAsFixed(0) ?? 'N/A'}m',
+              style: const TextStyle(fontSize: 10),
+            ),
+          ],
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class ActiveVisitTile extends StatelessWidget {
+  final Visit visit;
+
+  const ActiveVisitTile({super.key, required this.visit});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: AppPalette.warning,
+        child: Icon(_getPurposeIcon(), color: Colors.white, size: 20),
+      ),
+      title: Text(visit.customer?.name ?? 'Cliente'),
+      subtitle: Text(
+        'Iniciada: ${visit.startedAt != null ? _formatTime(visit.startedAt!) : 'N/A'}',
+      ),
+      trailing: Text(_getPurposeLabel()),
+    );
+  }
+
+  IconData _getPurposeIcon() {
+    switch (visit.purpose) {
+      case VisitPurpose.venta:
+        return Icons.shopping_cart;
+      case VisitPurpose.cobro:
+        return Icons.payment;
+      case VisitPurpose.entrega:
+        return Icons.local_shipping;
+      case VisitPurpose.auditoria:
+        return Icons.assignment;
+      case VisitPurpose.devolucion:
+        return Icons.keyboard_return;
+      default:
+        return Icons.location_on;
+    }
+  }
+
+  String _getPurposeLabel() {
+    switch (visit.purpose) {
+      case VisitPurpose.venta:
+        return 'Venta';
+      case VisitPurpose.cobro:
+        return 'Cobro';
+      case VisitPurpose.entrega:
+        return 'Entrega';
+      case VisitPurpose.visita:
+        return 'Visita';
+      case VisitPurpose.auditoria:
+        return 'Auditoría';
+      case VisitPurpose.devolucion:
+        return 'Devolución';
+      case VisitPurpose.otro:
+        return 'Otro';
+    }
+  }
+
+  String _formatTime(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class TeamMessageDialog extends StatefulWidget {
+  @override
+  State<TeamMessageDialog> createState() => _TeamMessageDialogState();
+}
+
+class _TeamMessageDialogState extends State<TeamMessageDialog> {
+  final _messageController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Mensaje al Equipo'),
+      content: TextField(
+        controller: _messageController,
+        maxLines: 3,
+        decoration: const InputDecoration(
+          hintText: 'Escribe tu mensaje...',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            context.read<SupervisorCubit>().sendTeamMessage(
+                  message: _messageController.text,
+                );
+            Navigator.of(context).pop();
+          },
+          child: const Text('Enviar'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+}
+
+enum ReportPeriod { today, week, month }
+
+
+===== lib/features/supervisor/bloc/supervisor_cubit.dart =====
+import 'dart:async';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import '../../../data/models/geo/location_sample.dart';
+import '../../../data/models/customers/customer.dart';
+import '../../../data/models/visits/visit.dart';
+import '../../../data/models/sales/order.dart';
+import '../../../data/models/auth/user_profile.dart';
+import '../../../data/repositories/tracking_repository.dart';
+import '../../../data/repositories/customers_repository.dart';
+import '../../../data/repositories/visits_repository.dart';
+import '../../../data/repositories/orders_repository.dart';
+import '../../../config/logger.dart';
+
+part 'supervisor_state.dart';
+part 'supervisor_cubit.freezed.dart';
+
+class SupervisorCubit extends Cubit<SupervisorState> {
+  final TrackingRepository _trackingRepository;
+  final CustomersRepository _customersRepository;
+  final VisitsRepository _visitsRepository;
+  final OrdersRepository _ordersRepository;
+
+  Timer? _locationUpdateTimer;
+
+  SupervisorCubit(
+    this._trackingRepository,
+    this._customersRepository,
+    this._visitsRepository,
+    this._ordersRepository,
+  ) : super(const SupervisorState.initial());
+
+  Future<void> initializeDashboard() async {
+    emit(const SupervisorState.loading());
+
+    try {
+      // Load initial data
+      await Future.wait([
+        _loadTeamLocations(),
+        _loadTodayStats(),
+        _loadActiveVisits(),
+      ]);
+
+      // Start real-time location updates
+      _startLocationUpdates();
+
+      emit(SupervisorState.loaded(
+        teamLocations: [],
+        todayStats: const SupervisorStats(),
+        activeVisits: [],
+        teamMembers: [],
+      ));
+    } catch (e) {
+      logger.e('Initialize supervisor dashboard error: $e');
+      emit(SupervisorState.error(e.toString()));
+    }
+  }
+
+  Future<void> _loadTeamLocations() async {
+    try {
+      final locations = await _trackingRepository.getRealtimeLocations();
+      final currentState = state;
+
+      if (currentState is SupervisorLoaded) {
+        emit(currentState.copyWith(teamLocations: locations));
+      }
+    } catch (e) {
+      logger.e('Load team locations error: $e');
+    }
+  }
+
+  Future<void> _loadTodayStats() async {
+    try {
+      // Mock stats - implement actual stats calculation
+      const stats = SupervisorStats(
+        totalVisits: 25,
+        completedVisits: 18,
+        pendingVisits: 7,
+        totalOrders: 12,
+        totalSales: 15480.50,
+        teamMembersActive: 8,
+        averageVisitDuration: 35,
+      );
+
+      final currentState = state;
+      if (currentState is SupervisorLoaded) {
+        emit(currentState.copyWith(todayStats: stats));
+      }
+    } catch (e) {
+      logger.e('Load today stats error: $e');
+    }
+  }
+
+  Future<void> _loadActiveVisits() async {
+    try {
+      // Get active visits for today
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+
+      // Mock active visits - implement actual query
+      final activeVisits = <Visit>[];
+
+      final currentState = state;
+      if (currentState is SupervisorLoaded) {
+        emit(currentState.copyWith(activeVisits: activeVisits));
+      }
+    } catch (e) {
+      logger.e('Load active visits error: $e');
+    }
+  }
+
+  void _startLocationUpdates() {
+    _locationUpdateTimer?.cancel();
+    _locationUpdateTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _loadTeamLocations(),
+    );
+  }
+
+  Future<void> refreshData() async {
+    final currentState = state;
+    if (currentState is SupervisorLoaded) {
+      emit(currentState.copyWith(isRefreshing: true));
+    }
+
+    await Future.wait([
+      _loadTeamLocations(),
+      _loadTodayStats(),
+      _loadActiveVisits(),
+    ]);
+
+    if (currentState is SupervisorLoaded) {
+      emit(currentState.copyWith(isRefreshing: false));
+    }
+  }
+
+  Future<void> loadTeamMember(String userId) async {
+    try {
+      final currentState = state;
+      if (currentState is SupervisorLoaded) {
+        emit(currentState.copyWith(isLoadingMember: true));
+
+        // Load team member details, visits, and performance
+        // Mock data for now
+        final memberDetails = TeamMemberDetails(
+          user: UserProfile(
+            id: userId,
+            fullName: 'Juan Pérez',
+            role: UserRole.vendedor,
+          ),
+          todayVisits: [],
+          todayOrders: [],
+          currentLocation: null,
+          performance: const MemberPerformance(
+            visitsToday: 5,
+            ordersToday: 3,
+            salesAmount: 2500.0,
+            visitDuration: 42,
+            efficiency: 85.5,
+          ),
+        );
+
+        emit(currentState.copyWith(
+          isLoadingMember: false,
+          selectedMemberDetails: memberDetails,
+        ));
+      }
+    } catch (e) {
+      logger.e('Load team member error: $e');
+      final currentState = state;
+      if (currentState is SupervisorLoaded) {
+        emit(currentState.copyWith(isLoadingMember: false));
+      }
+    }
+  }
+
+  Future<void> loadPerformanceReport({
+    required DateTime startDate,
+    required DateTime endDate,
+    String? userId,
+  }) async {
+    try {
+      emit(const SupervisorState.loadingReport());
+
+      // Generate performance report
+      final report = PerformanceReport(
+        period: '${_formatDate(startDate)} - ${_formatDate(endDate)}',
+        totalVisits: 150,
+        completedVisits: 135,
+        totalOrders: 89,
+        totalSales: 125680.50,
+        averageOrderValue: 1412.58,
+        topPerformers: [
+          TeamPerformance(
+            userId: 'user1',
+            userName: 'Juan Pérez',
+            visits: 25,
+            orders: 18,
+            sales: 22500.0,
+          ),
+          TeamPerformance(
+            userId: 'user2',
+            userName: 'María García',
+            visits: 22,
+            orders: 16,
+            sales: 19800.0,
+          ),
+        ],
+        visitsByDay: [
+          DayPerformance(date: startDate, visits: 20, orders: 15),
+          DayPerformance(
+              date: startDate.add(const Duration(days: 1)),
+              visits: 18,
+              orders: 12),
+        ],
+      );
+
+      emit(SupervisorState.reportLoaded(report));
+    } catch (e) {
+      logger.e('Load performance report error: $e');
+      emit(SupervisorState.error(e.toString()));
+    }
+  }
+
+  Future<void> sendTeamMessage({
+    required String message,
+    List<String>? targetUserIds,
+  }) async {
+    try {
+      // Send message to team members
+      // This would integrate with FCM or another messaging service
+
+      // For now, just show success
+      logger.i('Team message sent: $message');
+    } catch (e) {
+      logger.e('Send team message error: $e');
+    }
+  }
+
+  Future<void> approveOrder(String orderId) async {
+    try {
+      // Approve order logic
+      logger.i('Order approved: $orderId');
+    } catch (e) {
+      logger.e('Approve order error: $e');
+    }
+  }
+
+  Future<void> rejectOrder(String orderId, String reason) async {
+    try {
+      // Reject order logic
+      logger.i('Order rejected: $orderId, reason: $reason');
+    } catch (e) {
+      logger.e('Reject order error: $e');
+    }
+  }
+
+  Future<void> reassignCustomer({
+    required String customerId,
+    required String newUserId,
+  }) async {
+    try {
+      // Reassign customer to another team member
+      logger.i('Customer $customerId reassigned to $newUserId');
+    } catch (e) {
+      logger.e('Reassign customer error: $e');
+    }
+  }
+
+  Future<void> setGeofenceAlert({
+    required String userId,
+    required double lat,
+    required double lng,
+    required double radiusM,
+  }) async {
+    try {
+      // Set geofence alert for team member
+      logger.i('Geofence alert set for user $userId');
+    } catch (e) {
+      logger.e('Set geofence alert error: $e');
+    }
+  }
+
+  void clearSelectedMember() {
+    final currentState = state;
+    if (currentState is SupervisorLoaded) {
+      emit(currentState.copyWith(selectedMemberDetails: null));
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  @override
+  Future<void> close() {
+    _locationUpdateTimer?.cancel();
+    return super.close();
+  }
+}
+
+@freezed
+class SupervisorState with _$SupervisorState {
+  const factory SupervisorState.initial() = _Initial;
+  const factory SupervisorState.loading() = _Loading;
+  const factory SupervisorState.loaded({
+    required List<LocationSample> teamLocations,
+    required SupervisorStats todayStats,
+    required List<Visit> activeVisits,
+    required List<UserProfile> teamMembers,
+    @Default(false) bool isRefreshing,
+    @Default(false) bool isLoadingMember,
+    TeamMemberDetails? selectedMemberDetails,
+  }) = SupervisorLoaded;
+  const factory SupervisorState.loadingReport() = _LoadingReport;
+  const factory SupervisorState.reportLoaded(PerformanceReport report) =
+      _ReportLoaded;
+  const factory SupervisorState.error(String message) = _Error;
+}
+
+@freezed
+class SupervisorStats with _$SupervisorStats {
+  const factory SupervisorStats({
+    @Default(0) int totalVisits,
+    @Default(0) int completedVisits,
+    @Default(0) int pendingVisits,
+    @Default(0) int totalOrders,
+    @Default(0.0) double totalSales,
+    @Default(0) int teamMembersActive,
+    @Default(0) int averageVisitDuration,
+  }) = _SupervisorStats;
+}
+
+@freezed
+class TeamMemberDetails with _$TeamMemberDetails {
+  const factory TeamMemberDetails({
+    required UserProfile user,
+    required List<Visit> todayVisits,
+    required List<Order> todayOrders,
+    LocationSample? currentLocation,
+    required MemberPerformance performance,
+  }) = _TeamMemberDetails;
+}
+
+@freezed
+class MemberPerformance with _$MemberPerformance {
+  const factory MemberPerformance({
+    required int visitsToday,
+    required int ordersToday,
+    required double salesAmount,
+    required int visitDuration,
+    required double efficiency,
+  }) = _MemberPerformance;
+}
+
+@freezed
+class PerformanceReport with _$PerformanceReport {
+  const factory PerformanceReport({
+    required String period,
+    required int totalVisits,
+    required int completedVisits,
+    required int totalOrders,
+    required double totalSales,
+    required double averageOrderValue,
+    required List<TeamPerformance> topPerformers,
+    required List<DayPerformance> visitsByDay,
+  }) = _PerformanceReport;
+}
+
+@freezed
+class TeamPerformance with _$TeamPerformance {
+  const factory TeamPerformance({
+    required String userId,
+    required String userName,
+    required int visits,
+    required int orders,
+    required double sales,
+  }) = _TeamPerformance;
+}
+
+@freezed
+class DayPerformance with _$DayPerformance {
+  const factory DayPerformance({
+    required DateTime date,
+    required int visits,
+    required int orders,
+  }) = _DayPerformance;
+}
+
+
+===== lib/features/deliveries/pages/deliveries_page.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/palette.dart';
+import '../../../data/models/sales/order.dart';
+import '../bloc/deliveries_cubit.dart';
+
+class DeliveriesPage extends StatefulWidget {
+  const DeliveriesPage({super.key});
+
+  @override
+  State<DeliveriesPage> createState() => _DeliveriesPageState();
+}
+
+class _DeliveriesPageState extends State<DeliveriesPage> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<DeliveriesCubit>().loadDeliveries();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Entregas'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.sync),
+            onPressed: () =>
+                context.read<DeliveriesCubit>().loadDeliveries(forceSync: true),
+          ),
+        ],
+      ),
+      body: BlocBuilder<DeliveriesCubit, DeliveriesState>(
+        builder: (context, state) {
+          return state.when(
+            initial: () => const Center(child: Text('Cargando entregas...')),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            loaded: (deliveries) {
+              if (deliveries.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.local_shipping_outlined,
+                        size: 64,
+                        color: AppPalette.textSecondary,
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'No hay entregas pendientes',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: AppPalette.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return RefreshIndicator(
+                onRefresh: () => context
+                    .read<DeliveriesCubit>()
+                    .loadDeliveries(forceSync: true),
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: deliveries.length,
+                  itemBuilder: (context, index) {
+                    final delivery = deliveries[index];
+                    return DeliveryCard(
+                      delivery: delivery,
+                      onTap: () => _showDeliveryDetails(delivery),
+                    );
+                  },
+                ),
+              );
+            },
+            error: (message) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: AppPalette.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () =>
+                        context.read<DeliveriesCubit>().loadDeliveries(),
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showDeliveryDetails(dynamic delivery) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DeliveryDetailsSheet(delivery: delivery),
+    );
+  }
+}
+
+class DeliveryCard extends StatelessWidget {
+  final dynamic delivery;
+  final VoidCallback onTap;
+
+  const DeliveryCard({
+    super.key,
+    required this.delivery,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor('PENDING').withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'PENDIENTE',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _getStatusColor('PENDING'),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Pedido #12345',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppPalette.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Customer info
+              Row(
+                children: [
+                  const Icon(
+                    Icons.business,
+                    size: 16,
+                    color: AppPalette.textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tienda Ejemplo',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Address
+              Row(
+                children: [
+                  const Icon(
+                    Icons.location_on,
+                    size: 16,
+                    color: AppPalette.textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Calle Ejemplo 123, Colonia, Ciudad',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppPalette.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Footer with amount and items
+              Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppPalette.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '5 productos',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppPalette.primary,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '\$1,250.00',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppPalette.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'PENDING':
+        return AppPalette.warning;
+      case 'PARTIAL':
+        return AppPalette.info;
+      case 'DELIVERED':
+        return AppPalette.success;
+      case 'REJECTED':
+        return AppPalette.error;
+      default:
+        return AppPalette.textSecondary;
+    }
+  }
+}
+
+class DeliveryDetailsSheet extends StatelessWidget {
+  final dynamic delivery;
+
+  const DeliveryDetailsSheet({
+    super.key,
+    required this.delivery,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Detalles de Entrega',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const Divider(),
+
+          // Delivery info
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInfoSection('Cliente', [
+                    _buildInfoRow('Nombre', 'Tienda Ejemplo'),
+                    _buildInfoRow(
+                        'Dirección', 'Calle Ejemplo 123, Colonia, Ciudad'),
+                    _buildInfoRow('Teléfono', '+52 55 1234 5678'),
+                  ]),
+                  _buildInfoSection('Pedido', [
+                    _buildInfoRow('Número', '#12345'),
+                    _buildInfoRow('Fecha', '07/08/2025'),
+                    _buildInfoRow('Total', '\$1,250.00'),
+                  ]),
+                  _buildInfoSection('Productos', [
+                    _buildProductRow('Producto A', 2, '\$500.00'),
+                    _buildProductRow('Producto B', 1, '\$300.00'),
+                    _buildProductRow('Producto C', 3, '\$450.00'),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _confirmDelivery(context, false),
+                  icon: const Icon(Icons.close),
+                  label: const Text('Rechazar'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppPalette.error,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _confirmDelivery(context, true),
+                  icon: const Icon(Icons.check),
+                  label: const Text('Entregar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppPalette.success,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppPalette.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...children,
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppPalette.textSecondary,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductRow(String name, int qty, String total) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+          Text(
+            'x$qty',
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppPalette.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Text(
+            total,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelivery(BuildContext context, bool delivered) {
+    Navigator.of(context).pop();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(delivered ? 'Confirmar Entrega' : 'Rechazar Entrega'),
+        content: Text(delivered
+            ? '¿Confirmas que se entregaron todos los productos?'
+            : '¿Estás seguro de rechazar esta entrega?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: Implement delivery confirmation
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor:
+                  delivered ? AppPalette.success : AppPalette.error,
+            ),
+            child: Text(delivered ? 'Confirmar' : 'Rechazar'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+===== lib/features/deliveries/bloc/deliveries_cubit.dart =====
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import '../../../data/repositories/deliveries_repository.dart';
+import '../../../data/models/sales/order.dart';
+import '../../../config/logger.dart';
+
+part 'deliveries_state.dart';
+part 'deliveries_cubit.freezed.dart';
+
+class DeliveriesCubit extends Cubit<DeliveriesState> {
+  final DeliveriesRepository _repository;
+
+  DeliveriesCubit(this._repository) : super(const DeliveriesState.initial());
+
+  Future<void> loadDeliveries({bool forceSync = false}) async {
+    emit(const DeliveriesState.loading());
+
+    try {
+      final deliveries = await _repository.getDeliveries(forceSync: forceSync);
+      emit(DeliveriesState.loaded(deliveries));
+    } catch (e) {
+      logger.e('Load deliveries error: $e');
+      emit(DeliveriesState.error(e.toString()));
+    }
+  }
+
+  Future<void> confirmDelivery({
+    required String deliveryId,
+    required bool delivered,
+    String? notes,
+    List<String>? photoUrls,
+    String? signatureUrl,
+  }) async {
+    try {
+      final currentState = state;
+      if (currentState is DeliveriesLoaded) {
+        emit(const DeliveriesState.processing());
+
+        final status =
+            delivered ? DeliveryStatus.delivered : DeliveryStatus.rejected;
+
+        final updatedDelivery = await _repository.confirmDelivery(
+          deliveryId,
+          status,
+          notes,
+        );
+
+        // Update the delivery in the list
+        final updatedDeliveries = currentState.deliveries.map((delivery) {
+          if (delivery.id == deliveryId) {
+            return updatedDelivery;
+          }
+          return delivery;
+        }).toList();
+
+        emit(DeliveriesState.loaded(updatedDeliveries));
+
+        // Show success message
+        emit(DeliveriesState.deliveryConfirmed(
+          updatedDelivery,
+          delivered ? 'Entrega confirmada exitosamente' : 'Entrega rechazada',
+        ));
+
+        // Return to loaded state
+        emit(DeliveriesState.loaded(updatedDeliveries));
+      }
+    } catch (e) {
+      logger.e('Confirm delivery error: $e');
+      emit(DeliveriesState.error(e.toString()));
+    }
+  }
+
+  Future<void> markPartialDelivery({
+    required String deliveryId,
+    required List<Map<String, dynamic>> deliveredItems,
+    String? notes,
+  }) async {
+    try {
+      final currentState = state;
+      if (currentState is DeliveriesLoaded) {
+        emit(const DeliveriesState.processing());
+
+        final updatedDelivery = await _repository.confirmDelivery(
+          deliveryId,
+          DeliveryStatus.partial,
+          notes,
+        );
+
+        // Update the delivery in the list
+        final updatedDeliveries = currentState.deliveries.map((delivery) {
+          if (delivery.id == deliveryId) {
+            return updatedDelivery;
+          }
+          return delivery;
+        }).toList();
+
+        emit(DeliveriesState.loaded(updatedDeliveries));
+      }
+    } catch (e) {
+      logger.e('Mark partial delivery error: $e');
+      emit(DeliveriesState.error(e.toString()));
+    }
+  }
+
+  Future<void> startDeliveryRoute() async {
+    try {
+      // Start delivery route - could involve GPS tracking
+      logger.i('Starting delivery route');
+
+      // Load pending deliveries
+      await loadDeliveries();
+    } catch (e) {
+      logger.e('Start delivery route error: $e');
+      emit(DeliveriesState.error(e.toString()));
+    }
+  }
+
+  Future<void> completeDeliveryRoute() async {
+    try {
+      // Complete delivery route
+      logger.i('Completing delivery route');
+
+      // Generate delivery summary
+      final currentState = state;
+      if (currentState is DeliveriesLoaded) {
+        final completed = currentState.deliveries
+            .where((d) => d.status == DeliveryStatus.delivered)
+            .length;
+        final total = currentState.deliveries.length;
+
+        emit(DeliveriesState.routeCompleted(
+          'Ruta completada: $completed de $total entregas realizadas',
+        ));
+      }
+    } catch (e) {
+      logger.e('Complete delivery route error: $e');
+      emit(DeliveriesState.error(e.toString()));
+    }
+  }
+
+  void filterDeliveries(DeliveryStatus status) {
+    final currentState = state;
+    if (currentState is DeliveriesLoaded) {
+      final filteredDeliveries = currentState.deliveries
+          .where((delivery) => delivery.status == status)
+          .toList();
+
+      emit(DeliveriesState.filtered(filteredDeliveries, status));
+    }
+  }
+
+  void clearFilter() {
+    final currentState = state;
+    if (currentState is DeliveriesFiltered) {
+      emit(DeliveriesState.loaded(currentState.allDeliveries));
+    }
+  }
+
+  void searchDeliveries(String query) {
+    final currentState = state;
+    if (currentState is DeliveriesLoaded) {
+      if (query.isEmpty) {
+        // Show all deliveries
+        return;
+      }
+
+      final filteredDeliveries = currentState.deliveries.where((delivery) {
+        // Search in order ID, customer name, etc.
+        final searchFields = [
+          delivery.orderId,
+          delivery.order?.customer?.name ?? '',
+          delivery.order?.id ?? '',
+        ];
+
+        return searchFields
+            .any((field) => field.toLowerCase().contains(query.toLowerCase()));
+      }).toList();
+
+      emit(DeliveriesState.searched(filteredDeliveries, query));
+    }
+  }
+
+  Future<void> generateDeliveryReport({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    try {
+      emit(const DeliveriesState.generatingReport());
+
+      // Generate delivery report
+      final currentState = state;
+      if (currentState is DeliveriesLoaded) {
+        final report = DeliveryReport(
+          period: '${_formatDate(startDate)} - ${_formatDate(endDate)}',
+          totalDeliveries: currentState.deliveries.length,
+          successfulDeliveries: currentState.deliveries
+              .where((d) => d.status == DeliveryStatus.delivered)
+              .length,
+          rejectedDeliveries: currentState.deliveries
+              .where((d) => d.status == DeliveryStatus.rejected)
+              .length,
+          partialDeliveries: currentState.deliveries
+              .where((d) => d.status == DeliveryStatus.partial)
+              .length,
+          averageDeliveryTime: 25, // Mock data
+          deliveryRate: 0.85, // Mock data
+        );
+
+        emit(DeliveriesState.reportGenerated(report));
+      }
+    } catch (e) {
+      logger.e('Generate delivery report error: $e');
+      emit(DeliveriesState.error(e.toString()));
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+}
+
+@freezed
+class DeliveriesState with _$DeliveriesState {
+  const factory DeliveriesState.initial() = _Initial;
+  const factory DeliveriesState.loading() = _Loading;
+  const factory DeliveriesState.loaded(List<DeliveryModel> deliveries) =
+      DeliveriesLoaded;
+  const factory DeliveriesState.filtered(
+    List<DeliveryModel> deliveries,
+    DeliveryStatus filter,
+  ) = DeliveriesFiltered;
+  const factory DeliveriesState.searched(
+    List<DeliveryModel> deliveries,
+    String query,
+  ) = DeliveriesSearched;
+  const factory DeliveriesState.processing() = _Processing;
+  const factory DeliveriesState.deliveryConfirmed(
+    DeliveryModel delivery,
+    String message,
+  ) = _DeliveryConfirmed;
+  const factory DeliveriesState.routeCompleted(String message) =
+      _RouteCompleted;
+  const factory DeliveriesState.generatingReport() = _GeneratingReport;
+  const factory DeliveriesState.reportGenerated(DeliveryReport report) =
+      _ReportGenerated;
+  const factory DeliveriesState.error(String message) = _Error;
+}
+
+// Extension to get all deliveries from filtered state
+extension DeliveriesStateX on DeliveriesState {
+  List<DeliveryModel> get allDeliveries {
+    return when(
+      loaded: (deliveries) => deliveries,
+      filtered: (_, __) => [], // Would need to store original list
+      searched: (_, __) => [], // Would need to store original list
+      deliveryConfirmed: (_, __) => [],
+      initial: () => [],
+      loading: () => [],
+      processing: () => [],
+      routeCompleted: (_) => [],
+      generatingReport: () => [],
+      reportGenerated: (_) => [],
+      error: (_) => [],
+    );
+  }
+}
+
+@freezed
+class DeliveryReport with _$DeliveryReport {
+  const factory DeliveryReport({
+    required String period,
+    required int totalDeliveries,
+    required int successfulDeliveries,
+    required int rejectedDeliveries,
+    required int partialDeliveries,
+    required int averageDeliveryTime,
+    required double deliveryRate,
+  }) = _DeliveryReport;
+}
+
+
+===== lib/main.dart =====
+import 'package:flutter/material.dart';
+import 'bootstrap.dart';
+
+void main() {
+  bootstrap();
+}
+
+
+===== lib/routing/app_router.dart =====
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../features/auth/pages/sign_in_page.dart';
+import '../features/auth/bloc/auth_cubit.dart';
+import '../features/map/pages/live_map_page.dart';
+import '../features/customers/pages/customers_list_page.dart';
+import '../features/customers/pages/customer_detail_page.dart';
+import '../features/customers/pages/customer_form_page.dart';
+import '../features/visits/pages/visit_checkin_page.dart';
+import '../features/visits/pages/visit_forms_page.dart';
+import '../features/visits/pages/visit_photos_page.dart';
+import '../features/visits/pages/visit_signature_page.dart';
+import '../features/orders/pages/cart_page.dart';
+import

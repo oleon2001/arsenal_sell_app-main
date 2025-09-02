@@ -1,0 +1,3457 @@
+ '../features/deliveries/pages/deliveries_page.dart';
+import '../features/payments/pages/payments_page.dart';
+import '../features/supervisor/pages/supervisor_dashboard_page.dart';
+import '../core/widgets/app_scaffold.dart';
+
+class AppRouter {
+  static final _rootNavigatorKey = GlobalKey<NavigatorState>();
+  static final _shellNavigatorKey = GlobalKey<NavigatorState>();
+
+  static GoRouter get router => _router;
+
+  static final _router = GoRouter(
+    navigatorKey: _rootNavigatorKey,
+    initialLocation: '/dashboard',
+    redirect: (context, state) {
+      final authState = context.read<AuthCubit>().state;
+      final isAuthenticated = authState is Authenticated;
+      final isGoingToSignIn = state.matchedLocation == '/sign-in';
+
+      if (!isAuthenticated && !isGoingToSignIn) {
+        return '/sign-in';
+      }
+      if (isAuthenticated && isGoingToSignIn) {
+        return '/dashboard';
+      }
+      return null;
+    },
+    routes: [
+      // Auth routes
+      GoRoute(
+        path: '/sign-in',
+        builder: (context, state) => const SignInPage(),
+      ),
+
+      // Main app shell
+      ShellRoute(
+        navigatorKey: _shellNavigatorKey,
+        builder: (context, state, child) => AppScaffold(child: child),
+        routes: [
+          // Dashboard/Map
+          GoRoute(
+            path: '/dashboard',
+            builder: (context, state) => const LiveMapPage(),
+          ),
+
+          // Customers
+          GoRoute(
+            path: '/customers',
+            builder: (context, state) => const CustomersListPage(),
+          ),
+          GoRoute(
+            path: '/customers/new',
+            builder: (context, state) => const CustomerFormPage(),
+          ),
+          GoRoute(
+            path: '/customers/:id',
+            builder: (context, state) => CustomerDetailPage(
+              customerId: state.pathParameters['id']!,
+            ),
+          ),
+
+          // Visits
+          GoRoute(
+            path: '/visit/checkin/:customerId',
+            builder: (context, state) => VisitCheckinPage(
+              customerId: state.pathParameters['customerId']!,
+              purpose: state.uri.queryParameters['purpose'],
+            ),
+          ),
+          GoRoute(
+            path: '/visit/forms/:visitId',
+            builder: (context, state) => VisitFormsPage(
+              visitId: state.pathParameters['visitId']!,
+            ),
+          ),
+          GoRoute(
+            path: '/visit/photos/:visitId',
+            builder: (context, state) => VisitPhotosPage(
+              visitId: state.pathParameters['visitId']!,
+            ),
+          ),
+          GoRoute(
+            path: '/visit/signature/:visitId',
+            builder: (context, state) => VisitSignaturePage(
+              visitId: state.pathParameters['visitId']!,
+            ),
+          ),
+
+          // Orders
+          GoRoute(
+            path: '/orders/cart/:customerId',
+            builder: (context, state) => CartPage(
+              customerId: state.pathParameters['customerId']!,
+            ),
+          ),
+
+          // Deliveries
+          GoRoute(
+            path: '/deliveries',
+            builder: (context, state) => const DeliveriesPage(),
+          ),
+
+          // Payments
+          GoRoute(
+            path: '/payments',
+            builder: (context, state) => const PaymentsPage(),
+          ),
+
+          // Supervisor
+          GoRoute(
+            path: '/supervisor',
+            builder: (context, state) => const SupervisorDashboardPage(),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+
+===== lib/routing/guards.dart =====
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../features/auth/bloc/auth_cubit.dart';
+import '../data/models/auth/user_profile.dart';
+import '../config/logger.dart';
+
+class AuthGuard {
+  static String? redirectIfUnauthenticated(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    final authState = context.read<AuthCubit>().state;
+    final isAuthenticated = authState is Authenticated;
+    final isGoingToSignIn = state.matchedLocation == '/sign-in';
+
+    logger.d(
+        'Auth guard: isAuthenticated=$isAuthenticated, location=${state.matchedLocation}');
+
+    if (!isAuthenticated && !isGoingToSignIn) {
+      return '/sign-in';
+    }
+
+    if (isAuthenticated && isGoingToSignIn) {
+      return '/dashboard';
+    }
+
+    return null;
+  }
+}
+
+class RoleGuard {
+  /// Check if user has required role for accessing a route
+  static String? checkRole(
+    BuildContext context,
+    GoRouterState state,
+    List<UserRole> allowedRoles,
+  ) {
+    final authState = context.read<AuthCubit>().state;
+
+    if (authState is! Authenticated) {
+      return '/sign-in';
+    }
+
+    final userRole = authState.user.role;
+
+    if (!allowedRoles.contains(userRole)) {
+      logger.w('Access denied for role $userRole to ${state.matchedLocation}');
+      return '/dashboard'; // Redirect to dashboard if role not allowed
+    }
+
+    return null;
+  }
+
+  /// Supervisor and Admin only routes
+  static String? supervisorOrAdminOnly(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return checkRole(context, state, [UserRole.supervisor, UserRole.admin]);
+  }
+
+  /// Admin only routes
+  static String? adminOnly(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return checkRole(context, state, [UserRole.admin]);
+  }
+
+  /// Vendedor routes (also allow supervisors and admins)
+  static String? vendedorAccess(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return checkRole(context, state, [
+      UserRole.vendedor,
+      UserRole.supervisor,
+      UserRole.admin,
+    ]);
+  }
+
+  /// Repartidor routes (also allow supervisors and admins)
+  static String? repartidorAccess(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return checkRole(context, state, [
+      UserRole.repartidor,
+      UserRole.supervisor,
+      UserRole.admin,
+    ]);
+  }
+
+  /// Routes accessible by field workers (vendedor + repartidor)
+  static String? fieldWorkerAccess(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return checkRole(context, state, [
+      UserRole.vendedor,
+      UserRole.repartidor,
+      UserRole.supervisor,
+      UserRole.admin,
+    ]);
+  }
+}
+
+class FeatureGuard {
+  /// Check if user's company has access to specific features
+  static String? checkFeatureAccess(
+    BuildContext context,
+    GoRouterState state,
+    String featureKey,
+  ) {
+    final authState = context.read<AuthCubit>().state;
+
+    if (authState is! Authenticated) {
+      return '/sign-in';
+    }
+
+    // TODO: Implement feature flags based on company subscription
+    // For now, allow all features
+    return null;
+  }
+
+  /// Check if orders feature is available
+  static String? ordersFeatureGuard(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return checkFeatureAccess(context, state, 'orders');
+  }
+
+  /// Check if payments feature is available
+  static String? paymentsFeatureGuard(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return checkFeatureAccess(context, state, 'payments');
+  }
+
+  /// Check if deliveries feature is available
+  static String? deliveriesFeatureGuard(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return checkFeatureAccess(context, state, 'deliveries');
+  }
+
+  /// Check if supervisor dashboard is available
+  static String? supervisorFeatureGuard(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return checkFeatureAccess(context, state, 'supervisor_dashboard');
+  }
+}
+
+class LocationGuard {
+  /// Check if location permissions are granted for location-dependent routes
+  static String? checkLocationPermission(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    // TODO: Implement location permission check
+    // For routes that require location (visits, tracking, etc.)
+    return null;
+  }
+}
+
+class OnboardingGuard {
+  /// Check if user has completed onboarding
+  static String? checkOnboardingCompleted(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    final authState = context.read<AuthCubit>().state;
+
+    if (authState is! Authenticated) {
+      return '/sign-in';
+    }
+
+    // TODO: Check if user has completed onboarding
+    // This could be stored in user profile or preferences
+    final hasCompletedOnboarding = true; // Mock for now
+
+    if (!hasCompletedOnboarding) {
+      return '/onboarding';
+    }
+
+    return null;
+  }
+}
+
+class VisitGuard {
+  /// Check if user can start a new visit (no active visit)
+  static String? checkCanStartVisit(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    // TODO: Check if user has an active visit
+    // If there's an active visit, redirect to that visit
+    return null;
+  }
+
+  /// Check if user has an active visit for visit-related routes
+  static String? requireActiveVisit(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    // TODO: Check if user has an active visit
+    // If no active visit, redirect to dashboard
+    return null;
+  }
+}
+
+class NetworkGuard {
+  /// Check network connectivity for online-only features
+  static String? checkOnlineRequired(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    // TODO: Check network connectivity
+    // Show offline page if required feature needs internet
+    return null;
+  }
+}
+
+class CompanyGuard {
+  /// Check if user belongs to a company
+  static String? requireCompanyMembership(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    final authState = context.read<AuthCubit>().state;
+
+    if (authState is! Authenticated) {
+      return '/sign-in';
+    }
+
+    if (authState.user.companyId == null) {
+      logger.w('User has no company assigned');
+      return '/no-company'; // Would need to create this page
+    }
+
+    return null;
+  }
+}
+
+/// Utility class to combine multiple guards
+class GuardCombiner {
+  static String? combineGuards(
+    BuildContext context,
+    GoRouterState state,
+    List<String? Function(BuildContext, GoRouterState)> guards,
+  ) {
+    for (final guard in guards) {
+      final redirect = guard(context, state);
+      if (redirect != null) {
+        return redirect;
+      }
+    }
+    return null;
+  }
+
+  /// Common guard combination for authenticated routes
+  static String? authenticatedRoute(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return combineGuards(context, state, [
+      AuthGuard.redirectIfUnauthenticated,
+      CompanyGuard.requireCompanyMembership,
+      OnboardingGuard.checkOnboardingCompleted,
+    ]);
+  }
+
+  /// Common guard combination for supervisor routes
+  static String? supervisorRoute(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return combineGuards(context, state, [
+      authenticatedRoute,
+      RoleGuard.supervisorOrAdminOnly,
+      FeatureGuard.supervisorFeatureGuard,
+    ]);
+  }
+
+  /// Common guard combination for field worker routes
+  static String? fieldWorkerRoute(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return combineGuards(context, state, [
+      authenticatedRoute,
+      RoleGuard.fieldWorkerAccess,
+      LocationGuard.checkLocationPermission,
+    ]);
+  }
+
+  /// Common guard combination for visit routes
+  static String? visitRoute(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return combineGuards(context, state, [
+      fieldWorkerRoute,
+      VisitGuard.checkCanStartVisit,
+    ]);
+  }
+
+  /// Common guard combination for order routes
+  static String? orderRoute(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return combineGuards(context, state, [
+      authenticatedRoute,
+      RoleGuard.vendedorAccess,
+      FeatureGuard.ordersFeatureGuard,
+    ]);
+  }
+
+  /// Common guard combination for delivery routes
+  static String? deliveryRoute(
+    BuildContext context,
+    GoRouterState state,
+  ) {
+    return combineGuards(context, state, [
+      authenticatedRoute,
+      RoleGuard.repartidorAccess,
+      FeatureGuard.deliveriesFeatureGuard,
+    ]);
+  }
+}
+
+/// Helper extension for role checking
+extension UserRoleExtension on UserRole {
+  bool get isAdmin => this == UserRole.admin;
+  bool get isSupervisor => this == UserRole.supervisor;
+  bool get isVendedor => this == UserRole.vendedor;
+  bool get isRepartidor => this == UserRole.repartidor;
+
+  bool get canAccessSupervisorFeatures => isAdmin || isSupervisor;
+  bool get canAccessAllFeatures => isAdmin;
+  bool get isFieldWorker => isVendedor || isRepartidor;
+}
+
+
+===== lib/data/repositories/orders_repository.dart =====
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../models/sales/order.dart';
+import '../models/sales/product.dart';
+import '../local/drift/db.dart';
+import '../remote/supabase_client.dart';
+import '../../config/logger.dart';
+
+class OrdersRepository {
+  final DatabaseHelper _db = DatabaseHelper.instance;
+  final SupabaseService _supabase = SupabaseService();
+
+  Future<List<Order>> getOrders({bool forceSync = false}) async {
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      final isOnline = connectivity != ConnectivityResult.none;
+
+      if (isOnline && forceSync) {
+        await _syncOrdersFromServer();
+      }
+
+      final entities = await _db.getAllOrders();
+      return entities.map(_entityToModel).toList();
+    } catch (e) {
+      logger.e('Get orders error: $e');
+      rethrow;
+    }
+  }
+
+  Future<Order> createOrder(Order order) async {
+    try {
+      // Save locally first
+      final entity = _modelToEntity(order.copyWith(needsSync: true));
+      await _db.insertOrder(entity);
+
+      // Save order items
+      final itemEntities = order.items
+          .map((item) => OrderItemEntity(
+                id: item.id,
+                orderId: order.id,
+                productId: item.productId,
+                qty: item.qty,
+                price: item.price,
+                discount: item.discount,
+                total: item.total,
+              ))
+          .toList();
+
+      await _db.insertOrderItems(itemEntities);
+
+      // Try to sync immediately if online
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity != ConnectivityResult.none) {
+        await _syncOrderToServer(order);
+      }
+
+      return order;
+    } catch (e) {
+      logger.e('Create order error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Product>> getProducts() async {
+    try {
+      final entities = await _db.getAllProducts();
+      return entities
+          .map((entity) => Product(
+                id: entity.id,
+                companyId: entity.companyId,
+                sku: entity.sku,
+                name: entity.name,
+                unit: entity.unit,
+                tax: entity.tax,
+                active: entity.active,
+                createdAt: entity.createdAt,
+              ))
+          .toList();
+    } catch (e) {
+      logger.e('Get products error: $e');
+      return [];
+    }
+  }
+
+  Future<void> syncPendingOrders() async {
+    try {
+      final pendingOrders = await _db.getPendingSyncOrders();
+
+      for (final entity in pendingOrders) {
+        final order = _entityToModel(entity);
+        await _syncOrderToServer(order);
+        await _db.markOrderSynced(order.id);
+      }
+    } catch (e) {
+      logger.e('Sync pending orders error: $e');
+    }
+  }
+
+  Future<void> _syncOrdersFromServer() async {
+    try {
+      final orders = await _supabase.getOrders();
+      final entities = orders.map(_modelToEntity).toList();
+      await _db.insertOrders(entities);
+    } catch (e) {
+      logger.e('Sync orders from server error: $e');
+    }
+  }
+
+  Future<void> _syncOrderToServer(Order order) async {
+    try {
+      await _supabase.createOrder(order);
+      // Mark as synced in local DB
+      final entity = _modelToEntity(order.copyWith(needsSync: false));
+      await _db.insertOrder(entity);
+    } catch (e) {
+      logger.e('Sync order to server error: $e');
+    }
+  }
+
+  Order _entityToModel(OrderEntity entity) {
+    return Order(
+      id: entity.id,
+      companyId: entity.companyId,
+      customerId: entity.customerId,
+      userId: entity.userId,
+      priceListId: entity.priceListId,
+      status: _stringToOrderStatus(entity.status),
+      subtotal: entity.subtotal,
+      taxTotal: entity.taxTotal,
+      discountTotal: entity.discountTotal,
+      grandTotal: entity.grandTotal,
+      createdAt: entity.createdAt,
+    );
+  }
+
+  OrderEntity _modelToEntity(Order model) {
+    return OrderEntity(
+      id: model.id,
+      companyId: model.companyId,
+      customerId: model.customerId,
+      userId: model.userId,
+      priceListId: model.priceListId,
+      status: model.status.name.toUpperCase(),
+      subtotal: model.subtotal,
+      taxTotal: model.taxTotal,
+      discountTotal: model.discountTotal,
+      grandTotal: model.grandTotal,
+      createdAt: model.createdAt,
+      needsSync: false,
+    );
+  }
+
+  OrderStatus _stringToOrderStatus(String status) {
+    switch (status.toUpperCase()) {
+      case 'DRAFT':
+        return OrderStatus.draft;
+      case 'SENT':
+        return OrderStatus.sent;
+      case 'APPROVED':
+        return OrderStatus.approved;
+      case 'REJECTED':
+        return OrderStatus.rejected;
+      case 'DELIVERED':
+        return OrderStatus.delivered;
+      case 'CANCELLED':
+        return OrderStatus.cancelled;
+      default:
+        return OrderStatus.draft;
+    }
+  }
+}
+
+
+===== lib/data/repositories/tracking_repository.dart =====
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../models/geo/location_sample.dart';
+import '../local/drift/db.dart';
+import '../remote/supabase_client.dart';
+import '../../config/logger.dart';
+
+class TrackingRepository {
+  final DatabaseHelper _db = DatabaseHelper.instance;
+  final SupabaseService _supabase = SupabaseService();
+
+  Future<void> saveLocationSample(LocationSample sample) async {
+    try {
+      final entity = TrackingEntity(
+        id: sample.id,
+        companyId: sample.companyId,
+        userId: sample.userId,
+        at: sample.at,
+        latitude: sample.latitude,
+        longitude: sample.longitude,
+        speedMs: sample.speedMs,
+        accuracyM: sample.accuracyM,
+        needsSync: true,
+      );
+
+      await _db.insertTrackingLocation(entity);
+
+      // Try to sync immediately if online
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity != ConnectivityResult.none) {
+        await syncPendingLocations();
+      }
+    } catch (e) {
+      logger.e('Save location sample error: $e');
+    }
+  }
+
+  Future<void> syncPendingLocations() async {
+    try {
+      final pendingLocations = await _db.getPendingSyncTracking();
+
+      if (pendingLocations.isNotEmpty) {
+        final samples = pendingLocations
+            .map((entity) => LocationSample(
+                  id: entity.id,
+                  companyId: entity.companyId,
+                  userId: entity.userId,
+                  at: entity.at,
+                  latitude: entity.latitude,
+                  longitude: entity.longitude,
+                  speedMs: entity.speedMs,
+                  accuracyM: entity.accuracyM,
+                ))
+            .toList();
+
+        await _supabase.uploadTrackingLocations(samples);
+
+        final ids = pendingLocations.map((e) => e.id).toList();
+        await _db.markTrackingSynced(ids);
+      }
+    } catch (e) {
+      logger.e('Sync pending locations error: $e');
+    }
+  }
+
+  Future<List<LocationSample>> getRealtimeLocations() async {
+    try {
+      return await _supabase.getRealtimeLocations();
+    } catch (e) {
+      logger.e('Get realtime locations error: $e');
+      return [];
+    }
+  }
+
+  Future<void> cleanupOldData() async {
+    try {
+      await _db.cleanupOldTracking();
+    } catch (e) {
+      logger.e('Cleanup old data error: $e');
+    }
+  }
+}
+
+
+===== lib/data/repositories/customers_repository.dart =====
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../models/customers/customer.dart';
+import '../local/drift/db.dart';
+import '../remote/supabase_client.dart';
+import '../../config/logger.dart';
+
+class CustomersRepository {
+  final DatabaseHelper _db = DatabaseHelper.instance;
+  final SupabaseService _supabase = SupabaseService();
+
+  Future<List<Customer>> getCustomers({bool forceSync = false}) async {
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      final isOnline = connectivity != ConnectivityResult.none;
+
+      if (isOnline && forceSync) {
+        await _syncCustomersFromServer();
+      }
+
+      final entities = await _db.getAllCustomers();
+      return entities.map(_entityToModel).toList();
+    } catch (e) {
+      logger.e('Get customers error: $e');
+      rethrow;
+    }
+  }
+
+  Future<Customer?> getCustomerById(String id) async {
+    try {
+      final entity = await _db.getCustomerById(id);
+      return entity != null ? _entityToModel(entity) : null;
+    } catch (e) {
+      logger.e('Get customer by id error: $e');
+      return null;
+    }
+  }
+
+  Future<Customer> createCustomer(Customer customer) async {
+    try {
+      final entity = _modelToEntity(customer.copyWith(needsSync: true));
+      await _db.insertCustomer(entity);
+
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity != ConnectivityResult.none) {
+        await _syncCustomerToServer(customer);
+      }
+
+      return customer;
+    } catch (e) {
+      logger.e('Create customer error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _syncCustomersFromServer() async {
+    try {
+      final customers = await _supabase.getCustomers();
+      final entities = customers.map(_modelToEntity).toList();
+      await _db.insertCustomers(entities);
+    } catch (e) {
+      logger.e('Sync customers from server error: $e');
+    }
+  }
+
+  Future<void> _syncCustomerToServer(Customer customer) async {
+    try {
+      await _supabase.createCustomer(customer);
+      // Mark as synced in local DB
+      final entity = _modelToEntity(customer.copyWith(needsSync: false));
+      await _db.insertCustomer(entity);
+    } catch (e) {
+      logger.e('Sync customer to server error: $e');
+    }
+  }
+
+  Customer _entityToModel(CustomerEntity entity) {
+    return Customer(
+      id: entity.id,
+      companyId: entity.companyId,
+      code: entity.code,
+      name: entity.name,
+      email: entity.email,
+      phone: entity.phone,
+      address: entity.address,
+      latitude: entity.latitude,
+      longitude: entity.longitude,
+      geoAccuracyM: entity.geoAccuracyM,
+      createdBy: entity.createdBy,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    );
+  }
+
+  CustomerEntity _modelToEntity(Customer model) {
+    return CustomerEntity(
+      id: model.id,
+      companyId: model.companyId,
+      code: model.code,
+      name: model.name,
+      email: model.email,
+      phone: model.phone,
+      address: model.address,
+      latitude: model.latitude,
+      longitude: model.longitude,
+      geoAccuracyM: model.geoAccuracyM,
+      createdBy: model.createdBy,
+      createdAt: model.createdAt,
+      updatedAt: model.updatedAt,
+      needsSync: false,
+    );
+  }
+}
+
+
+===== lib/data/repositories/auth_repository.dart =====
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/auth/user_profile.dart';
+import '../local/preferences.dart';
+import '../../config/logger.dart';
+
+class AuthRepository {
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  Future<UserProfile?> signIn(String email, String password) async {
+    try {
+      final response = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null) {
+        final profile = await _fetchUserProfile(response.user!.id);
+        if (profile != null) {
+          await AppPreferences.setUserId(profile.id);
+          await AppPreferences.setUserRole(profile.role.name);
+        }
+        return profile;
+      }
+      return null;
+    } catch (e) {
+      logger.e('Sign in error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await _supabase.auth.signOut();
+      await AppPreferences.clear();
+    } catch (e) {
+      logger.e('Sign out error: $e');
+      rethrow;
+    }
+  }
+
+  Future<UserProfile?> getCurrentUser() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user != null) {
+        return await _fetchUserProfile(user.id);
+      }
+      return null;
+    } catch (e) {
+      logger.e('Get current user error: $e');
+      return null;
+    }
+  }
+
+  Future<UserProfile?> _fetchUserProfile(String userId) async {
+    try {
+      final response = await _supabase
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (response != null) {
+        return UserProfile.fromJson({
+          ...response,
+          'email': _supabase.auth.currentUser?.email,
+        });
+      }
+      return null;
+    } catch (e) {
+      logger.e('Fetch user profile error: $e');
+      return null;
+    }
+  }
+
+  Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
+}
+
+
+===== lib/data/repositories/inventory_repository.dart =====
+import '../models/sales/product.dart';
+import '../local/drift/db.dart';
+import '../remote/supabase_client.dart';
+import '../../config/logger.dart';
+
+class InventoryItem {
+  final String id;
+  final String productId;
+  final String warehouseId;
+  final double quantity;
+  final double reservedQuantity;
+  final DateTime updatedAt;
+  final Product? product;
+
+  InventoryItem({
+    required this.id,
+    required this.productId,
+    required this.warehouseId,
+    required this.quantity,
+    required this.reservedQuantity,
+    required this.updatedAt,
+    this.product,
+  });
+}
+
+class InventoryRepository {
+  final DatabaseHelper _db = DatabaseHelper.instance;
+  final SupabaseService _supabase = SupabaseService();
+
+  Future<List<InventoryItem>> getInventory({String? warehouseId}) async {
+    try {
+      // TODO: Implement get inventory
+      return [];
+    } catch (e) {
+      logger.e('Get inventory error: $e');
+      return [];
+    }
+  }
+
+  Future<double> getAvailableQuantity(
+      String productId, String warehouseId) async {
+    try {
+      // TODO: Implement get available quantity
+      return 0.0;
+    } catch (e) {
+      logger.e('Get available quantity error: $e');
+      return 0.0;
+    }
+  }
+
+  Future<void> reserveInventory(
+      String productId, String warehouseId, double quantity) async {
+    try {
+      // TODO: Implement reserve inventory
+    } catch (e) {
+      logger.e('Reserve inventory error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> releaseInventory(
+      String productId, String warehouseId, double quantity) async {
+    try {
+      // TODO: Implement release inventory
+    } catch (e) {
+      logger.e('Release inventory error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateInventory(
+      String productId, String warehouseId, double newQuantity) async {
+    try {
+      // TODO: Implement update inventory
+    } catch (e) {
+      logger.e('Update inventory error: $e');
+      rethrow;
+    }
+  }
+}
+
+
+===== lib/data/repositories/visits_repository.dart =====
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../models/visits/visit.dart';
+import '../local/drift/db.dart';
+import '../remote/supabase_client.dart';
+import '../../config/logger.dart';
+
+class VisitsRepository {
+  final DatabaseHelper _db = DatabaseHelper.instance;
+  final SupabaseService _supabase = SupabaseService();
+
+  Future<List<Visit>> getVisitsByCustomer(String customerId) async {
+    try {
+      final entities = await _db.getVisitsByCustomer(customerId);
+      return entities.map(_entityToModel).toList();
+    } catch (e) {
+      logger.e('Get visits by customer error: $e');
+      return [];
+    }
+  }
+
+  Future<Visit> startVisit(Visit visit) async {
+    try {
+      final entity = _modelToEntity(visit.copyWith(isSynced: false));
+      await _db.insertVisit(entity);
+
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity != ConnectivityResult.none) {
+        await _syncVisitToServer(visit);
+      }
+
+      return visit;
+    } catch (e) {
+      logger.e('Start visit error: $e');
+      rethrow;
+    }
+  }
+
+  Future<Visit> finishVisit(Visit visit) async {
+    try {
+      final entity = _modelToEntity(visit.copyWith(isSynced: false));
+      await _db.insertVisit(entity);
+
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity != ConnectivityResult.none) {
+        await _syncVisitToServer(visit);
+      }
+
+      return visit;
+    } catch (e) {
+      logger.e('Finish visit error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> syncPendingVisits() async {
+    try {
+      final pendingVisits = await _db.getPendingSyncVisits();
+
+      for (final entity in pendingVisits) {
+        final visit = _entityToModel(entity);
+        await _syncVisitToServer(visit);
+        await _db.markVisitSynced(visit.id);
+      }
+    } catch (e) {
+      logger.e('Sync pending visits error: $e');
+    }
+  }
+
+  Future<void> _syncVisitToServer(Visit visit) async {
+    try {
+      await _supabase.createVisit(visit);
+    } catch (e) {
+      logger.e('Sync visit to server error: $e');
+    }
+  }
+
+  Visit _entityToModel(VisitEntity entity) {
+    return Visit(
+      id: entity.id,
+      companyId: entity.companyId,
+      customerId: entity.customerId,
+      userId: entity.userId,
+      purpose: _stringToVisitPurpose(entity.purpose),
+      startedAt: entity.startedAt,
+      finishedAt: entity.finishedAt,
+      checkinLatitude: entity.checkinLatitude,
+      checkinLongitude: entity.checkinLongitude,
+      checkoutLatitude: entity.checkoutLatitude,
+      checkoutLongitude: entity.checkoutLongitude,
+      checkinAccuracyM: entity.checkinAccuracyM,
+      checkoutAccuracyM: entity.checkoutAccuracyM,
+      distanceM: entity.distanceM,
+      notes: entity.notes,
+      isSynced: entity.isSynced,
+    );
+  }
+
+  VisitEntity _modelToEntity(Visit model) {
+    return VisitEntity(
+      id: model.id,
+      companyId: model.companyId,
+      customerId: model.customerId,
+      userId: model.userId,
+      purpose: model.purpose.name.toUpperCase(),
+      startedAt: model.startedAt,
+      finishedAt: model.finishedAt,
+      checkinLatitude: model.checkinLatitude,
+      checkinLongitude: model.checkinLongitude,
+      checkoutLatitude: model.checkoutLatitude,
+      checkoutLongitude: model.checkoutLongitude,
+      checkinAccuracyM: model.checkinAccuracyM,
+      checkoutAccuracyM: model.checkoutAccuracyM,
+      distanceM: model.distanceM,
+      notes: model.notes,
+      isSynced: model.isSynced,
+    );
+  }
+
+  VisitPurpose _stringToVisitPurpose(String purpose) {
+    switch (purpose.toUpperCase()) {
+      case 'VENTA':
+        return VisitPurpose.venta;
+      case 'COBRO':
+        return VisitPurpose.cobro;
+      case 'ENTREGA':
+        return VisitPurpose.entrega;
+      case 'VISITA':
+        return VisitPurpose.visita;
+      case 'AUDITORIA':
+        return VisitPurpose.auditoria;
+      case 'DEVOLUCION':
+        return VisitPurpose.devolucion;
+      default:
+        return VisitPurpose.otro;
+    }
+  }
+}
+
+
+===== lib/data/repositories/deliveries_repository.dart =====
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../models/sales/order.dart';
+import '../local/drift/db.dart';
+import '../remote/supabase_client.dart';
+import '../../config/logger.dart';
+
+enum DeliveryStatus { pending, partial, delivered, rejected }
+
+class DeliveryModel {
+  final String id;
+  final String orderId;
+  final DeliveryStatus status;
+  final DateTime? deliveredAt;
+  final String? notes;
+  final Order? order;
+
+  DeliveryModel({
+    required this.id,
+    required this.orderId,
+    required this.status,
+    this.deliveredAt,
+    this.notes,
+    this.order,
+  });
+}
+
+class DeliveriesRepository {
+  final DatabaseHelper _db = DatabaseHelper.instance;
+  final SupabaseService _supabase = SupabaseService();
+
+  Future<List<DeliveryModel>> getDeliveries({bool forceSync = false}) async {
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      final isOnline = connectivity != ConnectivityResult.none;
+
+      if (isOnline && forceSync) {
+        await _syncDeliveriesFromServer();
+      }
+
+      // For now, return mock data
+      return [
+        DeliveryModel(
+          id: '1',
+          orderId: 'order_1',
+          status: DeliveryStatus.pending,
+        ),
+        DeliveryModel(
+          id: '2',
+          orderId: 'order_2',
+          status: DeliveryStatus.delivered,
+          deliveredAt: DateTime.now().subtract(const Duration(hours: 2)),
+        ),
+      ];
+    } catch (e) {
+      logger.e('Get deliveries error: $e');
+      return [];
+    }
+  }
+
+  Future<DeliveryModel> confirmDelivery(
+    String deliveryId,
+    DeliveryStatus status,
+    String? notes,
+  ) async {
+    try {
+      // TODO: Implement delivery confirmation
+      final delivery = DeliveryModel(
+        id: deliveryId,
+        orderId: 'order_id',
+        status: status,
+        deliveredAt: status == DeliveryStatus.delivered ? DateTime.now() : null,
+        notes: notes,
+      );
+
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity != ConnectivityResult.none) {
+        await _syncDeliveryToServer(delivery);
+      }
+
+      return delivery;
+    } catch (e) {
+      logger.e('Confirm delivery error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _syncDeliveriesFromServer() async {
+    try {
+      // TODO: Implement sync from server
+    } catch (e) {
+      logger.e('Sync deliveries from server error: $e');
+    }
+  }
+
+  Future<void> _syncDeliveryToServer(DeliveryModel delivery) async {
+    try {
+      // TODO: Implement sync to server
+    } catch (e) {
+      logger.e('Sync delivery to server error: $e');
+    }
+  }
+}
+
+
+===== lib/data/repositories/forms_repository.dart =====
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../remote/supabase_client.dart';
+import '../../config/logger.dart';
+
+class FormTemplate {
+  final String id;
+  final String companyId;
+  final String name;
+  final Map<String, dynamic> schema;
+  final DateTime createdAt;
+
+  FormTemplate({
+    required this.id,
+    required this.companyId,
+    required this.name,
+    required this.schema,
+    required this.createdAt,
+  });
+}
+
+class FormResponse {
+  final String id;
+  final String? templateId;
+  final String? customerId;
+  final String? visitId;
+  final String? userId;
+  final Map<String, dynamic> answers;
+  final DateTime createdAt;
+
+  FormResponse({
+    required this.id,
+    this.templateId,
+    this.customerId,
+    this.visitId,
+    this.userId,
+    required this.answers,
+    required this.createdAt,
+  });
+}
+
+class FormsRepository {
+  final SupabaseService _supabase = SupabaseService();
+
+  Future<List<FormTemplate>> getFormTemplates() async {
+    try {
+      // TODO: Implement get form templates
+      return [];
+    } catch (e) {
+      logger.e('Get form templates error: $e');
+      return [];
+    }
+  }
+
+  Future<FormResponse> submitFormResponse(FormResponse response) async {
+    try {
+      // TODO: Implement submit form response
+      return response;
+    } catch (e) {
+      logger.e('Submit form response error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<FormResponse>> getFormResponses({
+    String? templateId,
+    String? customerId,
+    String? visitId,
+  }) async {
+    try {
+      // TODO: Implement get form responses
+      return [];
+    } catch (e) {
+      logger.e('Get form responses error: $e');
+      return [];
+    }
+  }
+}
+
+
+===== lib/data/repositories/payments_repository.dart =====
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../models/customers/customer.dart';
+import '../local/drift/db.dart';
+import '../remote/supabase_client.dart';
+import '../../config/logger.dart';
+
+class PaymentModel {
+  final String id;
+  final String? orderId;
+  final String? customerId;
+  final String? userId;
+  final double amount;
+  final String? method;
+  final DateTime paidAt;
+  final String? notes;
+  final String status;
+  final Customer? customer;
+
+  PaymentModel({
+    required this.id,
+    this.orderId,
+    this.customerId,
+    this.userId,
+    required this.amount,
+    this.method,
+    required this.paidAt,
+    this.notes,
+    required this.status,
+    this.customer,
+  });
+}
+
+class PaymentsRepository {
+  final DatabaseHelper _db = DatabaseHelper.instance;
+  final SupabaseService _supabase = SupabaseService();
+
+  Future<List<PaymentModel>> getPayments({bool forceSync = false}) async {
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      final isOnline = connectivity != ConnectivityResult.none;
+
+      if (isOnline && forceSync) {
+        await _syncPaymentsFromServer();
+      }
+
+      // For now, return mock data
+      return [
+        PaymentModel(
+          id: '1',
+          customerId: 'customer_1',
+          amount: 2500.00,
+          method: 'EFECTIVO',
+          paidAt: DateTime.now().subtract(const Duration(hours: 1)),
+          status: 'PENDING',
+          customer: Customer(
+            id: 'customer_1',
+            companyId: 'company_id',
+            name: 'Cliente Ejemplo 1',
+          ),
+        ),
+        PaymentModel(
+          id: '2',
+          customerId: 'customer_2',
+          amount: 1800.00,
+          method: 'TARJETA',
+          paidAt: DateTime.now().subtract(const Duration(days: 1)),
+          status: 'COMPLETED',
+          customer: Customer(
+            id: 'customer_2',
+            companyId: 'company_id',
+            name: 'Cliente Ejemplo 2',
+          ),
+        ),
+      ];
+    } catch (e) {
+      logger.e('Get payments error: $e');
+      return [];
+    }
+  }
+
+  Future<PaymentModel> registerPayment(PaymentModel payment) async {
+    try {
+      // TODO: Save locally first, then sync
+
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity != ConnectivityResult.none) {
+        await _syncPaymentToServer(payment);
+      }
+
+      return payment;
+    } catch (e) {
+      logger.e('Register payment error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<PaymentModel>> getPendingPayments() async {
+    try {
+      final payments = await getPayments();
+      return payments.where((p) => p.status == 'PENDING').toList();
+    } catch (e) {
+      logger.e('Get pending payments error: $e');
+      return [];
+    }
+  }
+
+  Future<void> _syncPaymentsFromServer() async {
+    try {
+      // TODO: Implement sync from server
+    } catch (e) {
+      logger.e('Sync payments from server error: $e');
+    }
+  }
+
+  Future<void> _syncPaymentToServer(PaymentModel payment) async {
+    try {
+      // TODO: Implement sync to server
+    } catch (e) {
+      logger.e('Sync payment to server error: $e');
+    }
+  }
+}
+
+
+===== lib/data/models/customers/customer.dart =====
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'customer.freezed.dart';
+part 'customer.g.dart';
+
+@freezed
+class Customer with _$Customer {
+  const factory Customer({
+    required String id,
+    required String companyId,
+    String? code,
+    required String name,
+    String? email,
+    String? phone,
+    String? address,
+    double? latitude,
+    double? longitude,
+    double? geoAccuracyM,
+    String? createdBy,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) = _Customer;
+
+  factory Customer.fromJson(Map<String, dynamic> json) =>
+      _$CustomerFromJson(json);
+}
+
+@freezed
+class Address with _$Address {
+  const factory Address({
+    required String street,
+    required String city,
+    required String state,
+    required String zipCode,
+    String? country,
+    double? latitude,
+    double? longitude,
+  }) = _Address;
+
+  factory Address.fromJson(Map<String, dynamic> json) =>
+      _$AddressFromJson(json);
+}
+
+
+===== lib/data/models/sales/product.dart =====
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'product.freezed.dart';
+part 'product.g.dart';
+
+@freezed
+class Product with _$Product {
+  const factory Product({
+    required String id,
+    required String companyId,
+    String? sku,
+    required String name,
+    String? unit,
+    @Default(0.0) double tax,
+    @Default(true) bool active,
+    DateTime? createdAt,
+  }) = _Product;
+
+  factory Product.fromJson(Map<String, dynamic> json) =>
+      _$ProductFromJson(json);
+}
+
+@freezed
+class PriceList with _$PriceList {
+  const factory PriceList({
+    required String id,
+    required String companyId,
+    required String name,
+    @Default('USD') String currency,
+    DateTime? createdAt,
+    @Default([]) List<Price> prices,
+  }) = _PriceList;
+
+  factory PriceList.fromJson(Map<String, dynamic> json) =>
+      _$PriceListFromJson(json);
+}
+
+@freezed
+class Price with _$Price {
+  const factory Price({
+    required String id,
+    required String priceListId,
+    required String productId,
+    required double price,
+    Product? product,
+  }) = _Price;
+
+  factory Price.fromJson(Map<String, dynamic> json) => _$PriceFromJson(json);
+}
+
+
+===== lib/data/models/sales/order.dart =====
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'product.dart';
+
+part 'order.freezed.dart';
+part 'order.g.dart';
+
+enum OrderStatus {
+  @JsonValue('DRAFT')
+  draft,
+  @JsonValue('SENT')
+  sent,
+  @JsonValue('APPROVED')
+  approved,
+  @JsonValue('REJECTED')
+  rejected,
+  @JsonValue('DELIVERED')
+  delivered,
+  @JsonValue('CANCELLED')
+  cancelled,
+}
+
+@freezed
+class Order with _$Order {
+  const factory Order({
+    required String id,
+    required String companyId,
+    String? customerId,
+    String? userId,
+    String? priceListId,
+    @Default(OrderStatus.draft) OrderStatus status,
+    @Default(0.0) double subtotal,
+    @Default(0.0) double taxTotal,
+    @Default(0.0) double discountTotal,
+    @Default(0.0) double grandTotal,
+    DateTime? createdAt,
+    // Relations
+    Customer? customer,
+    @Default([]) List<OrderItem> items,
+  }) = _Order;
+
+  factory Order.fromJson(Map<String, dynamic> json) => _$OrderFromJson(json);
+}
+
+@freezed
+class OrderItem with _$OrderItem {
+  const factory OrderItem({
+    required String id,
+    required String orderId,
+    required String productId,
+    required double qty,
+    required double price,
+    @Default(0.0) double discount,
+    required double total,
+    Product? product,
+  }) = _OrderItem;
+
+  factory OrderItem.fromJson(Map<String, dynamic> json) =>
+      _$OrderItemFromJson(json);
+}
+
+
+===== lib/data/models/sales/promotion.dart =====
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'product.dart';
+
+part 'promotion.freezed.dart';
+part 'promotion.g.dart';
+
+@freezed
+class Promotion with _$Promotion {
+  const factory Promotion({
+    required String id,
+    required String companyId,
+    required String name,
+    String? description,
+    required PromotionType type,
+    required Map<String, dynamic> rules,
+    required DateTime startsAt,
+    required DateTime endsAt,
+    @Default(true) bool active,
+    @Default(0) int priority,
+    @Default(0) int usageLimit,
+    @Default(0) int usageCount,
+    @Default([]) List<String> applicableProducts,
+    @Default([]) List<String> applicableCategories,
+    @Default([]) List<String> applicableCustomers,
+    @Default([]) List<String> excludedProducts,
+    @Default([]) List<String> excludedCustomers,
+    double? minimumOrderAmount,
+    double? maximumDiscount,
+    @Default([]) List<DayOfWeek> applicableDays,
+    TimeOfDay? startTime,
+    TimeOfDay? endTime,
+    DateTime? createdAt,
+    String? createdBy,
+  }) = _Promotion;
+
+  factory Promotion.fromJson(Map<String, dynamic> json) =>
+      _$PromotionFromJson(json);
+}
+
+@freezed
+class PromotionResult with _$PromotionResult {
+  const factory PromotionResult({
+    required String promotionId,
+    required String promotionName,
+    required PromotionType type,
+    required double discountAmount,
+    double? discountPercentage,
+    @Default([]) List<String> affectedProducts,
+    @Default([]) List<PromotionItem> freeItems,
+    String? description,
+  }) = _PromotionResult;
+
+  factory PromotionResult.fromJson(Map<String, dynamic> json) =>
+      _$PromotionResultFromJson(json);
+}
+
+@freezed
+class PromotionItem with _$PromotionItem {
+  const factory PromotionItem({
+    required String productId,
+    required double quantity,
+    Product? product,
+  }) = _PromotionItem;
+
+  factory PromotionItem.fromJson(Map<String, dynamic> json) =>
+      _$PromotionItemFromJson(json);
+}
+
+enum PromotionType {
+  @JsonValue('PERCENTAGE_DISCOUNT')
+  percentageDiscount,
+  @JsonValue('FIXED_DISCOUNT')
+  fixedDiscount,
+  @JsonValue('BUY_X_GET_Y')
+  buyXGetY,
+  @JsonValue('FREE_SHIPPING')
+  freeShipping,
+  @JsonValue('BUNDLE_DISCOUNT')
+  bundleDiscount,
+  @JsonValue('VOLUME_DISCOUNT')
+  volumeDiscount,
+  @JsonValue('FIRST_TIME_BUYER')
+  firstTimeBuyer,
+  @JsonValue('LOYALTY_DISCOUNT')
+  loyaltyDiscount,
+}
+
+enum DayOfWeek {
+  @JsonValue(1)
+  monday,
+  @JsonValue(2)
+  tuesday,
+  @JsonValue(3)
+  wednesday,
+  @JsonValue(4)
+  thursday,
+  @JsonValue(5)
+  friday,
+  @JsonValue(6)
+  saturday,
+  @JsonValue(7)
+  sunday,
+}
+
+@freezed
+class TimeOfDay with _$TimeOfDay {
+  const factory TimeOfDay({
+    required int hour,
+    required int minute,
+  }) = _TimeOfDay;
+
+  factory TimeOfDay.fromJson(Map<String, dynamic> json) =>
+      _$TimeOfDayFromJson(json);
+}
+
+// Extensions for easier usage
+extension PromotionX on Promotion {
+  /// Check if promotion is currently active
+  bool get isCurrentlyActive {
+    if (!active) return false;
+
+    final now = DateTime.now();
+    if (now.isBefore(startsAt) || now.isAfter(endsAt)) {
+      return false;
+    }
+
+    // Check usage limit
+    if (usageLimit > 0 && usageCount >= usageLimit) {
+      return false;
+    }
+
+    // Check day of week
+    if (applicableDays.isNotEmpty) {
+      final currentDay = DayOfWeek.values[now.weekday - 1];
+      if (!applicableDays.contains(currentDay)) {
+        return false;
+      }
+    }
+
+    // Check time range
+    if (startTime != null && endTime != null) {
+      final currentTime = TimeOfDay(hour: now.hour, minute: now.minute);
+      if (!_isTimeInRange(currentTime, startTime!, endTime!)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// Check if product is applicable for this promotion
+  bool isProductApplicable(String productId) {
+    // Check excluded products first
+    if (excludedProducts.contains(productId)) {
+      return false;
+    }
+
+    // If specific products are defined, check inclusion
+    if (applicableProducts.isNotEmpty) {
+      return applicableProducts.contains(productId);
+    }
+
+    // If categories are defined, would need to check product category
+    // This would require product information
+
+    return true;
+  }
+
+  /// Check if customer is applicable for this promotion
+  bool isCustomerApplicable(String customerId) {
+    // Check excluded customers first
+    if (excludedCustomers.contains(customerId)) {
+      return false;
+    }
+
+    // If specific customers are defined, check inclusion
+    if (applicableCustomers.isNotEmpty) {
+      return applicableCustomers.contains(customerId);
+    }
+
+    return true;
+  }
+
+  /// Check if order meets minimum amount requirement
+  bool meetsMinimumAmount(double orderAmount) {
+    return minimumOrderAmount == null || orderAmount >= minimumOrderAmount!;
+  }
+
+  /// Get promotion description for display
+  String get displayDescription {
+    switch (type) {
+      case PromotionType.percentageDiscount:
+        final percentage = rules['percentage'] ?? 0;
+        return '$percentage% de descuento';
+      case PromotionType.fixedDiscount:
+        final amount = rules['amount'] ?? 0;
+        return '\$$amount de descuento';
+      case PromotionType.buyXGetY:
+        final buyQty = rules['buyQuantity'] ?? 1;
+        final getQty = rules['getQuantity'] ?? 1;
+        return 'Compra $buyQty lleva $getQty gratis';
+      case PromotionType.freeShipping:
+        return 'Envío gratis';
+      case PromotionType.bundleDiscount:
+        return 'Descuento por paquete';
+      case PromotionType.volumeDiscount:
+        return 'Descuento por volumen';
+      case PromotionType.firstTimeBuyer:
+        return 'Descuento primera compra';
+      case PromotionType.loyaltyDiscount:
+        return 'Descuento por lealtad';
+    }
+  }
+
+  bool _isTimeInRange(TimeOfDay current, TimeOfDay start, TimeOfDay end) {
+    final currentMinutes = current.hour * 60 + current.minute;
+    final startMinutes = start.hour * 60 + start.minute;
+    final endMinutes = end.hour * 60 + end.minute;
+
+    if (startMinutes <= endMinutes) {
+      // Same day range
+      return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+    } else {
+      // Overnight range
+      return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+    }
+  }
+}
+
+extension PromotionTypeX on PromotionType {
+  String get displayName {
+    switch (this) {
+      case PromotionType.percentageDiscount:
+        return 'Descuento por Porcentaje';
+      case PromotionType.fixedDiscount:
+        return 'Descuento Fijo';
+      case PromotionType.buyXGetY:
+        return 'Compra X Lleva Y';
+      case PromotionType.freeShipping:
+        return 'Envío Gratis';
+      case PromotionType.bundleDiscount:
+        return 'Descuento por Paquete';
+      case PromotionType.volumeDiscount:
+        return 'Descuento por Volumen';
+      case PromotionType.firstTimeBuyer:
+        return 'Primera Compra';
+      case PromotionType.loyaltyDiscount:
+        return 'Descuento por Lealtad';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case PromotionType.percentageDiscount:
+        return Icons.percent;
+      case PromotionType.fixedDiscount:
+        return Icons.money_off;
+      case PromotionType.buyXGetY:
+        return Icons.add_shopping_cart;
+      case PromotionType.freeShipping:
+        return Icons.local_shipping;
+      case PromotionType.bundleDiscount:
+        return Icons.inventory;
+      case PromotionType.volumeDiscount:
+        return Icons.scale;
+      case PromotionType.firstTimeBuyer:
+        return Icons.new_releases;
+      case PromotionType.loyaltyDiscount:
+        return Icons.star;
+    }
+  }
+}
+
+extension DayOfWeekX on DayOfWeek {
+  String get displayName {
+    switch (this) {
+      case DayOfWeek.monday:
+        return 'Lunes';
+      case DayOfWeek.tuesday:
+        return 'Martes';
+      case DayOfWeek.wednesday:
+        return 'Miércoles';
+      case DayOfWeek.thursday:
+        return 'Jueves';
+      case DayOfWeek.friday:
+        return 'Viernes';
+      case DayOfWeek.saturday:
+        return 'Sábado';
+      case DayOfWeek.sunday:
+        return 'Domingo';
+    }
+  }
+
+  String get shortName {
+    switch (this) {
+      case DayOfWeek.monday:
+        return 'Lun';
+      case DayOfWeek.tuesday:
+        return 'Mar';
+      case DayOfWeek.wednesday:
+        return 'Mié';
+      case DayOfWeek.thursday:
+        return 'Jue';
+      case DayOfWeek.friday:
+        return 'Vie';
+      case DayOfWeek.saturday:
+        return 'Sáb';
+      case DayOfWeek.sunday:
+        return 'Dom';
+    }
+  }
+}
+
+// Promotion Engine for applying promotions
+class PromotionEngine {
+  /// Apply promotions to an order
+  static List<PromotionResult> applyPromotions({
+    required List<Promotion> promotions,
+    required List<OrderItemModel> orderItems,
+    required String customerId,
+    required double orderTotal,
+  }) {
+    final results = <PromotionResult>[];
+
+    // Sort promotions by priority (higher priority first)
+    final sortedPromotions = List<Promotion>.from(promotions)
+      ..sort((a, b) => b.priority.compareTo(a.priority));
+
+    for (final promotion in sortedPromotions) {
+      if (!promotion.isCurrentlyActive) continue;
+      if (!promotion.isCustomerApplicable(customerId)) continue;
+      if (!promotion.meetsMinimumAmount(orderTotal)) continue;
+
+      final result = _applyPromotion(promotion, orderItems, orderTotal);
+      if (result != null) {
+        results.add(result);
+      }
+    }
+
+    return results;
+  }
+
+  static PromotionResult? _applyPromotion(
+    Promotion promotion,
+    List<OrderItemModel> orderItems,
+    double orderTotal,
+  ) {
+    switch (promotion.type) {
+      case PromotionType.percentageDiscount:
+        return _applyPercentageDiscount(promotion, orderItems, orderTotal);
+      case PromotionType.fixedDiscount:
+        return _applyFixedDiscount(promotion, orderTotal);
+      case PromotionType.buyXGetY:
+        return _applyBuyXGetY(promotion, orderItems);
+      case PromotionType.volumeDiscount:
+        return _applyVolumeDiscount(promotion, orderItems);
+      default:
+        return null;
+    }
+  }
+
+  static PromotionResult? _applyPercentageDiscount(
+    Promotion promotion,
+    List<OrderItemModel> orderItems,
+    double orderTotal,
+  ) {
+    final percentage = promotion.rules['percentage']?.toDouble() ?? 0;
+    if (percentage <= 0) return null;
+
+    final applicableItems = orderItems
+        .where((item) => promotion.isProductApplicable(item.productId))
+        .toList();
+
+    if (applicableItems.isEmpty) return null;
+
+    final applicableTotal =
+        applicableItems.fold<double>(0, (sum, item) => sum + item.total);
+
+    double discountAmount = applicableTotal * (percentage / 100);
+
+    // Apply maximum discount limit
+    if (promotion.maximumDiscount != null &&
+        discountAmount > promotion.maximumDiscount!) {
+      discountAmount = promotion.maximumDiscount!;
+    }
+
+    return PromotionResult(
+      promotionId: promotion.id,
+      promotionName: promotion.name,
+      type: promotion.type,
+      discountAmount: discountAmount,
+      discountPercentage: percentage,
+      affectedProducts: applicableItems.map((item) => item.productId).toList(),
+      description: '${percentage.toStringAsFixed(1)}% de descuento',
+    );
+  }
+
+  static PromotionResult? _applyFixedDiscount(
+    Promotion promotion,
+    double orderTotal,
+  ) {
+    final amount = promotion.rules['amount']?.toDouble() ?? 0;
+    if (amount <= 0) return null;
+
+    final discountAmount = amount > orderTotal ? orderTotal : amount;
+
+    return PromotionResult(
+      promotionId: promotion.id,
+      promotionName: promotion.name,
+      type: promotion.type,
+      discountAmount: discountAmount,
+      description: '\$${amount.toStringAsFixed(2)} de descuento',
+    );
+  }
+
+  static PromotionResult? _applyBuyXGetY(
+    Promotion promotion,
+    List<OrderItemModel> orderItems,
+  ) {
+    final buyQuantity = promotion.rules['buyQuantity']?.toInt() ?? 1;
+    final getQuantity = promotion.rules['getQuantity']?.toInt() ?? 1;
+    final buyProductId = promotion.rules['buyProductId'] as String?;
+    final getProductId = promotion.rules['getProductId'] as String?;
+
+    if (buyProductId == null || getProductId == null) return null;
+
+    final buyItem = orderItems.firstWhere(
+      (item) => item.productId == buyProductId,
+      orElse: () => null,
+    );
+
+    if (buyItem == null || buyItem.qty < buyQuantity) return null;
+
+    final sets = (buyItem.qty / buyQuantity).floor();
+    final freeQuantity = sets * getQuantity;
+
+    final freeItems = [
+      PromotionItem(
+        productId: getProductId,
+        quantity: freeQuantity.toDouble(),
+      ),
+    ];
+
+    return PromotionResult(
+      promotionId: promotion.id,
+      promotionName: promotion.name,
+      type: promotion.type,
+      discountAmount: 0, // Free items, no direct discount
+      freeItems: freeItems,
+      description: 'Compra $buyQuantity lleva $getQuantity gratis',
+    );
+  }
+
+  static PromotionResult? _applyVolumeDiscount(
+    Promotion promotion,
+    List<OrderItemModel> orderItems,
+  ) {
+    final tiers = promotion.rules['tiers'] as List<dynamic>? ?? [];
+    if (tiers.isEmpty) return null;
+
+    final totalQuantity =
+        orderItems.fold<double>(0, (sum, item) => sum + item.qty);
+
+    // Find applicable tier
+    Map<String, dynamic>? applicableTier;
+    for (final tier in tiers) {
+      final minQty = tier['minQuantity']?.toDouble() ?? 0;
+      if (totalQuantity >= minQty) {
+        applicableTier = tier;
+      }
+    }
+
+    if (applicableTier == null) return null;
+
+    final discountPercentage =
+        applicableTier['discountPercentage']?.toDouble() ?? 0;
+    if (discountPercentage <= 0) return null;
+
+    final orderTotal =
+        orderItems.fold<double>(0, (sum, item) => sum + item.total);
+    final discountAmount = orderTotal * (discountPercentage / 100);
+
+    return PromotionResult(
+      promotionId: promotion.id,
+      promotionName: promotion.name,
+      type: promotion.type,
+      discountAmount: discountAmount,
+      discountPercentage: discountPercentage,
+      affectedProducts: orderItems.map((item) => item.productId).toList(),
+      description:
+          '${discountPercentage.toStringAsFixed(1)}% descuento por volumen',
+    );
+  }
+}
+
+// Mock OrderItemModel for the promotion engine
+class OrderItemModel {
+  final String productId;
+  final double qty;
+  final double price;
+  final double total;
+
+  OrderItemModel({
+    required this.productId,
+    required this.qty,
+    required this.price,
+    required this.total,
+  });
+}
+
+
+===== lib/data/models/sales/price_list.dart =====
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'product.dart';
+
+part 'price_list.freezed.dart';
+part 'price_list.g.dart';
+
+@freezed
+class PriceListModel with _$PriceListModel {
+  const factory PriceListModel({
+    required String id,
+    required String companyId,
+    required String name,
+    String? description,
+    @Default('USD') String currency,
+    @Default(true) bool isActive,
+    @Default(false) bool isDefault,
+    DateTime? validFrom,
+    DateTime? validTo,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    @Default([]) List<PriceModel> prices,
+    CustomerSegment? targetSegment,
+    PriceListType? type,
+  }) = _PriceListModel;
+
+  factory PriceListModel.fromJson(Map<String, dynamic> json) =>
+      _$PriceListModelFromJson(json);
+}
+
+@freezed
+class PriceModel with _$PriceModel {
+  const factory PriceModel({
+    required String id,
+    required String priceListId,
+    required String productId,
+    required double price,
+    double? costPrice,
+    double? margin,
+    double? minQuantity,
+    double? maxQuantity,
+    DateTime? validFrom,
+    DateTime? validTo,
+    @Default(true) bool isActive,
+    Product? product,
+    PriceUnit? unit,
+    @Default([]) List<PriceTier> tiers,
+  }) = _PriceModel;
+
+  factory PriceModel.fromJson(Map<String, dynamic> json) =>
+      _$PriceModelFromJson(json);
+}
+
+@freezed
+class PriceTier with _$PriceTier {
+  const factory PriceTier({
+    required double minQuantity,
+    required double price,
+    double? maxQuantity,
+    double? discountPercentage,
+  }) = _PriceTier;
+
+  factory PriceTier.fromJson(Map<String, dynamic> json) =>
+      _$PriceTierFromJson(json);
+}
+
+enum PriceListType {
+  @JsonValue('STANDARD')
+  standard,
+  @JsonValue('WHOLESALE')
+  wholesale,
+  @JsonValue('RETAIL')
+  retail,
+  @JsonValue('PROMOTIONAL')
+  promotional,
+  @JsonValue('SEASONAL')
+  seasonal,
+  @JsonValue('VOLUME')
+  volume,
+  @JsonValue('CUSTOMER_SPECIFIC')
+  customerSpecific,
+}
+
+enum CustomerSegment {
+  @JsonValue('GENERAL')
+  general,
+  @JsonValue('VIP')
+  vip,
+  @JsonValue('WHOLESALE')
+  wholesale,
+  @JsonValue('RETAIL')
+  retail,
+  @JsonValue('DISTRIBUTOR')
+  distributor,
+  @JsonValue('CORPORATE')
+  corporate,
+}
+
+enum PriceUnit {
+  @JsonValue('UNIT')
+  unit,
+  @JsonValue('KILOGRAM')
+  kilogram,
+  @JsonValue('LITER')
+  liter,
+  @JsonValue('METER')
+  meter,
+  @JsonValue('SQUARE_METER')
+  squareMeter,
+  @JsonValue('BOX')
+  box,
+  @JsonValue('DOZEN')
+  dozen,
+  @JsonValue('CASE')
+  case,
+}
+
+// Helper extensions
+extension PriceListModelX on PriceListModel {
+  /// Check if price list is currently valid
+  bool get isCurrentlyValid {
+    final now = DateTime.now();
+    
+    if (validFrom != null && now.isBefore(validFrom!)) {
+      return false;
+    }
+    
+    if (validTo != null && now.isAfter(validTo!)) {
+      return false;
+    }
+    
+    return isActive;
+  }
+
+  /// Get price for a specific product
+  PriceModel? getPriceForProduct(String productId) {
+    try {
+      return prices.firstWhere((price) => 
+          price.productId == productId && price.isActive);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get all active prices
+  List<PriceModel> get activePrices {
+    return prices.where((price) => price.isActive).toList();
+  }
+
+  /// Get price count
+  int get priceCount => activePrices.length;
+
+  /// Get average price
+  double get averagePrice {
+    final active = activePrices;
+    if (active.isEmpty) return 0;
+    
+    return active.fold<double>(0, (sum, price) => sum + price.price) / 
+           active.length;
+  }
+
+  /// Get price range
+  PriceRange get priceRange {
+    final active = activePrices;
+    if (active.isEmpty) {
+      return const PriceRange(min: 0, max: 0);
+    }
+    
+    double min = active.first.price;
+    double max = active.first.price;
+    
+    for (final price in active) {
+      if (price.price < min) min = price.price;
+      if (price.price > max) max = price.price;
+    }
+    
+    return PriceRange(min: min, max: max);
+  }
+
+  /// Format currency
+  String formatPrice(double amount) {
+    return '$currency ${amount.toStringAsFixed(2)}';
+  }
+}
+
+extension PriceModelX on PriceModel {
+  /// Check if price is currently valid
+  bool get isCurrentlyValid {
+    final now = DateTime.now();
+    
+    if (validFrom != null && now.isBefore(validFrom!)) {
+      return false;
+    }
+    
+    if (validTo != null && now.isAfter(validTo!)) {
+      return false;
+    }
+    
+    return isActive;
+  }
+
+  /// Get price for specific quantity
+  double getPriceForQuantity(double quantity) {
+    if (tiers.isEmpty) return price;
+    
+    // Find applicable tier
+    PriceTier? applicableTier;
+    
+    for (final tier in tiers) {
+      if (quantity >= tier.minQuantity) {
+        if (tier.maxQuantity == null || quantity <= tier.maxQuantity!) {
+          applicableTier = tier;
+          break;
+        }
+      }
+    }
+    
+    return applicableTier?.price ?? price;
+  }
+
+  /// Get discount percentage for quantity
+  double getDiscountForQuantity(double quantity) {
+    if (tiers.isEmpty) return 0;
+    
+    for (final tier in tiers) {
+      if (quantity >= tier.minQuantity) {
+        if (tier.maxQuantity == null || quantity <= tier.maxQuantity!) {
+          return tier.discountPercentage ?? 0;
+        }
+      }
+    }
+    
+    return 0;
+  }
+
+  /// Calculate profit margin
+  double get profitMargin {
+    if (costPrice == null || costPrice == 0) return 0;
+    return ((price - costPrice!) / price) * 100;
+  }
+
+  /// Check if quantity is within valid range
+  bool isQuantityValid(double quantity) {
+    if (minQuantity != null && quantity < minQuantity!) return false;
+    if (maxQuantity != null && quantity > maxQuantity!) return false;
+    return true;
+  }
+}
+
+extension PriceListTypeX on PriceListType {
+  String get displayName {
+    switch (this) {
+      case PriceListType.standard:
+        return 'Estándar';
+      case PriceListType.wholesale:
+        return 'Mayoreo';
+      case PriceListType.retail:
+        return 'Menudeo';
+      case PriceListType.promotional:
+        return 'Promocional';
+      case PriceListType.seasonal:
+        return 'Temporal';
+      case PriceListType.volume:
+        return 'Por Volumen';
+      case PriceListType.customerSpecific:
+        return 'Cliente Específico';
+    }
+  }
+
+  int get priority {
+    switch (this) {
+      case PriceListType.customerSpecific:
+        return 1;
+      case PriceListType.promotional:
+        return 2;
+      case PriceListType.seasonal:
+        return 3;
+      case PriceListType.volume:
+        return 4;
+      case PriceListType.wholesale:
+        return 5;
+      case PriceListType.retail:
+        return 6;
+      case PriceListType.standard:
+        return 7;
+    }
+  }
+}
+
+extension CustomerSegmentX on CustomerSegment {
+  String get displayName {
+    switch (this) {
+      case CustomerSegment.general:
+        return 'General';
+      case CustomerSegment.vip:
+        return 'VIP';
+      case CustomerSegment.wholesale:
+        return 'Mayorista';
+      case CustomerSegment.retail:
+        return 'Detallista';
+      case CustomerSegment.distributor:
+        return 'Distribuidor';
+      case CustomerSegment.corporate:
+        return 'Corporativo';
+    }
+  }
+}
+
+extension PriceUnitX on PriceUnit {
+  String get displayName {
+    switch (this) {
+      case PriceUnit.unit:
+        return 'Unidad';
+      case PriceUnit.kilogram:
+        return 'Kilogramo';
+      case PriceUnit.liter:
+        return 'Litro';
+      case PriceUnit.meter:
+        return 'Metro';
+      case PriceUnit.squareMeter:
+        return 'Metro²';
+      case PriceUnit.box:
+        return 'Caja';
+      case PriceUnit.dozen:
+        return 'Docena';
+      case PriceUnit.case:
+        return 'Estuche';
+    }
+  }
+
+  String get abbreviation {
+    switch (this) {
+      case PriceUnit.unit:
+        return 'ud';
+      case PriceUnit.kilogram:
+        return 'kg';
+      case PriceUnit.liter:
+        return 'l';
+      case PriceUnit.meter:
+        return 'm';
+      case PriceUnit.squareMeter:
+        return 'm²';
+      case PriceUnit.box:
+        return 'cja';
+      case PriceUnit.dozen:
+        return 'doc';
+      case PriceUnit.case:
+        return 'est';
+    }
+  }
+}
+
+@freezed
+class PriceRange with _$PriceRange {
+  const factory PriceRange({
+    required double min,
+    required double max,
+  }) = _PriceRange;
+  
+  factory PriceRange.fromJson(Map<String, dynamic> json) =>
+      _$PriceRangeFromJson(json);
+}
+
+// Price calculation utilities
+class PriceCalculator {
+  /// Calculate final price with discounts and taxes
+  static double calculateFinalPrice({
+    required double basePrice,
+    double discountPercentage = 0,
+    double discountAmount = 0,
+    double taxPercentage = 0,
+    double quantity = 1,
+  }) {
+    double price = basePrice * quantity;
+    
+    // Apply percentage discount
+    if (discountPercentage > 0) {
+      price = price * (1 - discountPercentage / 100);
+    }
+    
+    // Apply fixed discount
+    if (discountAmount > 0) {
+      price = price - discountAmount;
+    }
+    
+    // Apply tax
+    if (taxPercentage > 0) {
+      price = price * (1 + taxPercentage / 100);
+    }
+    
+    return price < 0 ? 0 : price;
+  }
+
+  /// Calculate discount amount
+  static double calculateDiscountAmount({
+    required double basePrice,
+    required double discountPercentage,
+    double quantity = 1,
+  }) {
+    return basePrice * quantity * (discountPercentage / 100);
+  }
+
+  /// Calculate tax amount
+  static double calculateTaxAmount({
+    required double netPrice,
+    required double taxPercentage,
+  }) {
+    return netPrice * (taxPercentage / 100);
+  }
+
+  /// Calculate profit margin
+  static double calculateMargin({
+    required double sellingPrice,
+    required double costPrice,
+  }) {
+    if (sellingPrice == 0) return 0;
+    return ((sellingPrice - costPrice) / sellingPrice) * 100;
+  }
+
+  /// Calculate markup
+  static double calculateMarkup({
+    required double sellingPrice,
+    required double costPrice,
+  }) {
+    if (costPrice == 0) return 0;
+    return ((sellingPrice - costPrice) / costPrice) * 100;
+  }
+}
+
+===== lib/data/models/auth/user_profile.dart =====
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'user_profile.freezed.dart';
+part 'user_profile.g.dart';
+
+enum UserRole {
+  @JsonValue('ADMIN')
+  admin,
+  @JsonValue('SUPERVISOR')
+  supervisor,
+  @JsonValue('VENDEDOR')
+  vendedor,
+  @JsonValue('REPARTIDOR')
+  repartidor
+}
+
+@freezed
+class UserProfile with _$UserProfile {
+  const factory UserProfile({
+    required String id,
+    String? companyId,
+    String? fullName,
+    String? phone,
+    String? email,
+    @Default(UserRole.vendedor) UserRole role,
+    @Default(true) bool isActive,
+    DateTime? createdAt,
+  }) = _UserProfile;
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) =>
+      _$UserProfileFromJson(json);
+}
+
+
+===== lib/data/models/visits/visit.dart =====
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'visit.freezed.dart';
+part 'visit.g.dart';
+
+enum VisitPurpose {
+  @JsonValue('VENTA')
+  venta,
+  @JsonValue('COBRO')
+  cobro,
+  @JsonValue('ENTREGA')
+  entrega,
+  @JsonValue('VISITA')
+  visita,
+  @JsonValue('AUDITORIA')
+  auditoria,
+  @JsonValue('DEVOLUCION')
+  devolucion,
+  @JsonValue('OTRO')
+  otro,
+}
+
+@freezed
+class Visit with _$Visit {
+  const factory Visit({
+    required String id,
+    required String companyId,
+    required String customerId,
+    String? userId,
+    required VisitPurpose purpose,
+    DateTime? startedAt,
+    DateTime? finishedAt,
+    double? checkinLatitude,
+    double? checkinLongitude,
+    double? checkoutLatitude,
+    double? checkoutLongitude,
+    double? checkinAccuracyM,
+    double? checkoutAccuracyM,
+    double? distanceM,
+    String? notes,
+    @Default(false) bool isSynced,
+    // Relations
+    Customer? customer,
+    @Default([]) List<VisitPhoto> photos,
+    VisitSignature? signature,
+  }) = _Visit;
+
+  factory Visit.fromJson(Map<String, dynamic> json) => _$VisitFromJson(json);
+}
+
+@freezed
+class VisitPhoto with _$VisitPhoto {
+  const factory VisitPhoto({
+    required String id,
+    required String visitId,
+    required String storagePath,
+    DateTime? createdAt,
+  }) = _VisitPhoto;
+
+  factory VisitPhoto.fromJson(Map<String, dynamic> json) =>
+      _$VisitPhotoFromJson(json);
+}
+
+@freezed
+class VisitSignature with _$VisitSignature {
+  const factory VisitSignature({
+    required String id,
+    required String visitId,
+    required String storagePath,
+    String? signedBy,
+    DateTime? createdAt,
+  }) = _VisitSignature;
+
+  factory VisitSignature.fromJson(Map<String, dynamic> json) =>
+      _$VisitSignatureFromJson(json);
+}
+
+
+===== lib/data/models/geo/location_sample.dart =====
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'location_sample.freezed.dart';
+part 'location_sample.g.dart';
+
+@freezed
+class LocationSample with _$LocationSample {
+  const factory LocationSample({
+    required int id,
+    required String companyId,
+    required String userId,
+    required DateTime at,
+    required double latitude,
+    required double longitude,
+    double? speedMs,
+    double? accuracyM,
+  }) = _LocationSample;
+
+  factory LocationSample.fromJson(Map<String, dynamic> json) =>
+      _$LocationSampleFromJson(json);
+}
+
+@freezed
+class Geofence with _$Geofence {
+  const factory Geofence({
+    required String id,
+    required String companyId,
+    required String ownerId,
+    @Default(10) int radiusM,
+    required double centerLatitude,
+    required double centerLongitude,
+    DateTime? createdAt,
+  }) = _Geofence;
+
+  factory Geofence.fromJson(Map<String, dynamic> json) =>
+      _$GeofenceFromJson(json);
+}
+
+
+===== lib/data/models/routes/route_plan.dart =====
+import 'package:freezed_annotation/freezed_annotation.dart';
+import '../customers/customer.dart';
+
+part 'route_plan.freezed.dart';
+part 'route_plan.g.dart';
+
+@freezed
+class RoutePlan with _$RoutePlan {
+  const factory RoutePlan({
+    required String id,
+    required String companyId,
+    required String name,
+    required DateTime date,
+    String? ownerId,
+    DateTime? createdAt,
+    @Default([]) List<RouteStop> stops,
+  }) = _RoutePlan;
+
+  factory RoutePlan.fromJson(Map<String, dynamic> json) =>
+      _$RoutePlanFromJson(json);
+}
+
+@freezed
+class RouteStop with _$RouteStop {
+  const factory RouteStop({
+    required String id,
+    required String routeId,
+    required String customerId,
+    DateTime? plannedTime,
+    int? sequence,
+    String? notes,
+    Customer? customer,
+  }) = _RouteStop;
+
+  factory RouteStop.fromJson(Map<String, dynamic> json) =>
+      _$RouteStopFromJson(json);
+}
+
+
+===== lib/data/models/reports/kpi.dart =====
+import 'package:flutter/material.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'kpi.freezed.dart';
+part 'kpi.g.dart';
+
+@freezed
+class KPI with _$KPI {
+  const factory KPI({
+    required String id,
+    required String name,
+    required String description,
+    required KPIType type,
+    required double value,
+    required double target,
+    String? unit,
+    required DateTime period,
+    String? userId,
+    String? companyId,
+    DateTime? createdAt,
+    KPITrend? trend,
+    double? previousValue,
+    @Default([]) List<KPIDataPoint> dataPoints,
+  }) = _KPI;
+
+  factory KPI.fromJson(Map<String, dynamic> json) => _$KPIFromJson(json);
+}
+
+@freezed
+class KPIDataPoint with _$KPIDataPoint {
+  const factory KPIDataPoint({
+    required DateTime date,
+    required double value,
+    String? label,
+    Map<String, dynamic>? metadata,
+  }) = _KPIDataPoint;
+
+  factory KPIDataPoint.fromJson(Map<String, dynamic> json) =>
+      _$KPIDataPointFromJson(json);
+}
+
+@freezed
+class KPIDashboard with _$KPIDashboard {
+  const factory KPIDashboard({
+    required String userId,
+    required DateTime period,
+    required List<KPI> kpis,
+    required KPISummary summary,
+    @Default([]) List<KPIAlert> alerts,
+    DateTime? lastUpdated,
+  }) = _KPIDashboard;
+
+  factory KPIDashboard.fromJson(Map<String, dynamic> json) =>
+      _$KPIDashboardFromJson(json);
+}
+
+@freezed
+class KPISummary with _$KPISummary {
+  const factory KPISummary({
+    required int totalKPIs,
+    required int kpisOnTarget,
+    required int kpisAboveTarget,
+    required int kpisBelowTarget,
+    required double overallPerformance,
+    KPITrend? overallTrend,
+  }) = _KPISummary;
+
+  factory KPISummary.fromJson(Map<String, dynamic> json) =>
+      _$KPISummaryFromJson(json);
+}
+
+@freezed
+class KPIAlert with _$KPIAlert {
+  const factory KPIAlert({
+    required String kpiId,
+    required String kpiName,
+    required KPIAlertType type,
+    required String message,
+    required KPIAlertSeverity severity,
+    DateTime? createdAt,
+    bool? acknowledged,
+  }) = _KPIAlert;
+
+  factory KPIAlert.fromJson(Map<String, dynamic> json) =>
+      _$KPIAlertFromJson(json);
+}
+
+enum KPIType {
+  @JsonValue('VISITS_COUNT')
+  visitsCount,
+  @JsonValue('VISITS_COMPLETION_RATE')
+  visitsCompletionRate,
+  @JsonValue('AVERAGE_VISIT_DURATION')
+  averageVisitDuration,
+  @JsonValue('SALES_AMOUNT')
+  salesAmount,
+  @JsonValue('ORDERS_COUNT')
+  ordersCount,
+  @JsonValue('AVERAGE_ORDER_VALUE')
+  averageOrderValue,
+  @JsonValue('CUSTOMER_SATISFACTION')
+  customerSatisfaction,
+  @JsonValue('ROUTE_EFFICIENCY')
+  routeEfficiency,
+  @JsonValue('COLLECTION_RATE')
+  collectionRate,
+  @JsonValue('NEW_CUSTOMERS')
+  newCustomers,
+  @JsonValue('CUSTOMER_RETENTION')
+  customerRetention,
+  @JsonValue('DELIVERY_ON_TIME')
+  deliveryOnTime,
+  @JsonValue('INVENTORY_TURNOVER')
+  inventoryTurnover,
+  @JsonValue('PROFIT_MARGIN')
+  profitMargin,
+  @JsonValue('CONVERSION_RATE')
+  conversionRate,
+}
+
+enum KPITrend {
+  @JsonValue('UP')
+  up,
+  @JsonValue('DOWN')
+  down,
+  @JsonValue('STABLE')
+  stable,
+}
+
+enum KPIAlertType {
+  @JsonValue('TARGET_MISSED')
+  targetMissed,
+  @JsonValue('PERFORMANCE_DROP')
+  performanceDrop,
+  @JsonValue('UNUSUAL_ACTIVITY')
+  unusualActivity,
+  @JsonValue('THRESHOLD_EXCEEDED')
+  thresholdExceeded,
+}
+
+enum KPIAlertSeverity {
+  @JsonValue('LOW')
+  low,
+  @JsonValue('MEDIUM')
+  medium,
+  @JsonValue('HIGH')
+  high,
+  @JsonValue('CRITICAL')
+  critical,
+}
+
+// Extensions for easier usage
+extension KPIX on KPI {
+  /// Calculate performance percentage against target
+  double get performancePercentage {
+    if (target == 0) return 0;
+    return (value / target) * 100;
+  }
+
+  /// Check if KPI is on target (within 5% tolerance)
+  bool get isOnTarget {
+    const tolerance = 5.0; // 5% tolerance
+    final performance = performancePercentage;
+    return performance >= (100 - tolerance) && performance <= (100 + tolerance);
+  }
+
+  /// Check if KPI is above target
+  bool get isAboveTarget => performancePercentage > 105;
+
+  /// Check if KPI is below target
+  bool get isBelowTarget => performancePercentage < 95;
+
+  /// Get KPI status
+  KPIStatus get status {
+    if (isAboveTarget) return KPIStatus.aboveTarget;
+    if (isBelowTarget) return KPIStatus.belowTarget;
+    return KPIStatus.onTarget;
+  }
+
+  /// Calculate trend percentage
+  double? get trendPercentage {
+    if (previousValue == null || previousValue == 0) return null;
+    return ((value - previousValue!) / previousValue!) * 100;
+  }
+
+  /// Get formatted value with unit
+  String get formattedValue {
+    switch (type) {
+      case KPIType.salesAmount:
+      case KPIType.averageOrderValue:
+        return '\$${value.toStringAsFixed(2)}';
+      case KPIType.visitsCompletionRate:
+      case KPIType.collectionRate:
+      case KPIType.customerRetention:
+      case KPIType.deliveryOnTime:
+      case KPIType.profitMargin:
+      case KPIType.conversionRate:
+        return '${value.toStringAsFixed(1)}%';
+      case KPIType.averageVisitDuration:
+        return '${value.toStringAsFixed(0)} min';
+      default:
+        return value.toStringAsFixed(0) + (unit ?? '');
+    }
+  }
+
+  /// Get formatted target with unit
+  String get formattedTarget {
+    switch (type) {
+      case KPIType.salesAmount:
+      case KPIType.averageOrderValue:
+        return '\$${target.toStringAsFixed(2)}';
+      case KPIType.visitsCompletionRate:
+      case KPIType.collectionRate:
+      case KPIType.customerRetention:
+      case KPIType.deliveryOnTime:
+      case KPIType.profitMargin:
+      case KPIType.conversionRate:
+        return '${target.toStringAsFixed(1)}%';
+      case KPIType.averageVisitDuration:
+        return '${target.toStringAsFixed(0)} min';
+      default:
+        return target.toStringAsFixed(0) + (unit ?? '');
+    }
+  }
+}
+
+extension KPITypeX on KPIType {
+  String get displayName {
+    switch (this) {
+      case KPIType.visitsCount:
+        return 'Número de Visitas';
+      case KPIType.visitsCompletionRate:
+        return 'Tasa de Finalización de Visitas';
+      case KPIType.averageVisitDuration:
+        return 'Duración Promedio de Visita';
+      case KPIType.salesAmount:
+        return 'Monto de Ventas';
+      case KPIType.ordersCount:
+        return 'Número de Pedidos';
+      case KPIType.averageOrderValue:
+        return 'Valor Promedio de Pedido';
+      case KPIType.customerSatisfaction:
+        return 'Satisfacción del Cliente';
+      case KPIType.routeEfficiency:
+        return 'Eficiencia de Ruta';
+      case KPIType.collectionRate:
+        return 'Tasa de Cobranza';
+      case KPIType.newCustomers:
+        return 'Nuevos Clientes';
+      case KPIType.customerRetention:
+        return 'Retención de Clientes';
+      case KPIType.deliveryOnTime:
+        return 'Entregas a Tiempo';
+      case KPIType.inventoryTurnover:
+        return 'Rotación de Inventario';
+      case KPIType.profitMargin:
+        return 'Margen de Ganancia';
+      case KPIType.conversionRate:
+        return 'Tasa de Conversión';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case KPIType.visitsCount:
+        return 'Total de visitas realizadas';
+      case KPIType.visitsCompletionRate:
+        return 'Porcentaje de visitas completadas';
+      case KPIType.averageVisitDuration:
+        return 'Tiempo promedio por visita';
+      case KPIType.salesAmount:
+        return 'Monto total de ventas';
+      case KPIType.ordersCount:
+        return 'Cantidad de pedidos generados';
+      case KPIType.averageOrderValue:
+        return 'Valor promedio por pedido';
+      case KPIType.customerSatisfaction:
+        return 'Calificación promedio de satisfacción';
+      case KPIType.routeEfficiency:
+        return 'Eficiencia en recorrido de rutas';
+      case KPIType.collectionRate:
+        return 'Porcentaje de cobranza exitosa';
+      case KPIType.newCustomers:
+        return 'Cantidad de clientes nuevos';
+      case KPIType.customerRetention:
+        return 'Porcentaje de retención de clientes';
+      case KPIType.deliveryOnTime:
+        return 'Porcentaje de entregas puntuales';
+      case KPIType.inventoryTurnover:
+        return 'Rotación de inventario';
+      case KPIType.profitMargin:
+        return 'Margen de ganancia porcentual';
+      case KPIType.conversionRate:
+        return 'Tasa de conversión de visitas a ventas';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case KPIType.visitsCount:
+        return Icons.location_on;
+      case KPIType.visitsCompletionRate:
+        return Icons.check_circle;
+      case KPIType.averageVisitDuration:
+        return Icons.timer;
+      case KPIType.salesAmount:
+        return Icons.attach_money;
+      case KPIType.ordersCount:
+        return Icons.shopping_cart;
+      case KPIType.averageOrderValue:
+        return Icons.receipt_long;
+      case KPIType.customerSatisfaction:
+        return Icons.sentiment_satisfied;
+      case KPIType.routeEfficiency:
+        return Icons.route;
+      case KPIType.collectionRate:
+        return Icons.payment;
+      case KPIType.newCustomers:
+        return Icons.person_add;
+      case KPIType.customerRetention:
+        return Icons.favorite;
+      case KPIType.deliveryOnTime:
+        return Icons.local_shipping;
+      case KPIType.inventoryTurnover:
+        return Icons.inventory;
+      case KPIType.profitMargin:
+        return Icons.trending_up;
+      case KPIType.conversionRate:
+        return Icons.transform;
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case KPIType.visitsCount:
+      case KPIType.visitsCompletionRate:
+        return Colors.blue;
+      case KPIType.salesAmount:
+      case KPIType.averageOrderValue:
+      case KPIType.profitMargin:
+        return Colors.green;
+      case KPIType.ordersCount:
+      case KPIType.conversionRate:
+        return Colors.orange;
+      case KPIType.customerSatisfaction:
+      case KPIType.customerRetention:
+        return Colors.purple;
+      case KPIType.deliveryOnTime:
+      case KPIType.routeEfficiency:
+        return Colors.teal;
+      case KPIType.collectionRate:
+        return Colors.indigo;
+      case KPIType.newCustomers:
+        return Colors.cyan;
+      default:
+        return Colors.grey;
+    }
+  }
+}
+
+extension KPITrendX on KPITrend {
+  String get displayName {
+    switch (this) {
+      case KPITrend.up:
+        return 'Al Alza';
+      case KPITrend.down:
+        return 'A la Baja';
+      case KPITrend.stable:
+        return 'Estable';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case KPITrend.up:
+        return Icons.trending_up;
+      case KPITrend.down:
+        return Icons.trending_down;
+      case KPITrend.stable:
+        return Icons.trending_flat;
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case KPITrend.up:
+        return Colors.green;
+      case KPITrend.down:
+        return Colors.red;
+      case KPITrend.stable:
+        return Colors.orange;
+    }
+  }
+}
+
+extension KPIAlertSeverityX on KPIAlertSeverity {
+  String get displayName {
+    switch (this) {
+      case KPIAlertSeverity.low:
+        return 'Baja';
+      case KPIAlertSeverity.medium:
+        return 'Media';
+      case KPIAlertSeverity.high:
+        return 'Alta';
+      case KPIAlertSeverity.critical:
+        return 'Crítica';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case KPIAlertSeverity.low:
+        return Colors.yellow;
+      case KPIAlertSeverity.medium:
+        return Colors.orange;
+      case KPIAlertSeverity.high:
+        return Colors.red;
+      case KPIAlertSeverity.critical:
+        return Colors.purple;
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case KPIAlertSeverity.low:
+        return Icons.info;
+      case KPIAlertSeverity.medium:
+        return Icons.warning;
+      case KPIAlertSeverity.high:
+        return Icons.error;
+      case KPIAlertSeverity.critical:
+        return Icons.crisis_alert;
+    }
+  }
+}
+
+enum KPIStatus { onTarget, aboveTarget, belowTarget }
+
+extension KPIStatusX on KPIStatus {
+  String get displayName {
+    switch (this) {
+      case KPIStatus.onTarget:
+        return 'En Meta';
+      case KPIStatus.aboveTarget:
+        return 'Sobre Meta';
+      case KPIStatus.belowTarget:
+        return 'Bajo Meta';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case KPIStatus.onTarget:
+        return Colors.green;
+      case KPIStatus.aboveTarget:
+        return Colors.blue;
+      case KPIStatus.belowTarget:
+        return Colors.red;
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case KPIStatus.onTarget:
+        return Icons.check_circle;
+      case KPIStatus.aboveTarget:
+        return Icons.trending_up;
+      case KPIStatus.belowTarget:
+        return Icons.trending_down;
+    }
+  }
+}
+
+// KPI Calculator utilities
+class KPICalculator {
+  /// Calculate visits completion rate
+  static double calculateVisitsCompletionRate({
+    required int completedVisits,
+    required int totalVisits,
+  }) {
+    if (totalVisits == 0) return 0;
+    return (completedVisits / totalVisits) * 100;
+  }
+
+  /// Calculate average order value
+  static double calculateAverageOrderValue({
+    required double totalSales,
+    required int totalOrders,
+  }) {
+    if (totalOrders == 0) return 0;
+    return totalSales / totalOrders;
+  }
+
+  /// Calculate conversion rate
+  static double calculateConversionRate({
+    required int orders,
+    required int visits,
+  }) {
+    if (visits == 0) return 0;
+    return (orders / visits) * 100;
+  }
+
+  /// Calculate route efficiency
+  static double calculateRouteEfficiency({
+    required double plannedDistance,
+    required double actualDistance,
+    required double plannedTime,
+    required double actualTime,
+  }) {
+    if (actualDistance == 0 || actualTime == 0) return 0;
+
+    final distanceEfficiency = plannedDistance / actualDistance;
+    final timeEfficiency = plannedTime / actualTime;
+
+    return ((distanceEfficiency + timeEfficiency) / 2) * 100;
+  }
+
+  /// Calculate collection rate
+  static double calculateCollectionRate({
+    required double collectedAmount,
+    required double totalDue,
+  }) {
+    if (totalDue == 0) return 0;
+    return (collectedAmount / totalDue) * 100;
+  }
+
+  /// Calculate customer retention rate
+  static double calculateCustomerRetentionRate({
+    required int customersAtStart,
+    required int customersAtEnd,
+    required int newCustomers,
+  }) {
+    if (customersAtStart == 0) return 0;
+    final retainedCustomers = customersAtEnd - newCustomers;
+    return (retainedCustomers / customersAtStart) * 100;
+  }
+
+  /// Calculate trend based on current and previous values
+  static KPITrend calculateTrend({
+    required double currentValue,
+    required double previousValue,
+    double threshold = 5.0, // 5% threshold for trend detection
+  }) {
+    if (previousValue == 0) return KPITrend.stable;
+
+    final changePercentage =
+        ((currentValue - previousValue) / previousValue) * 100;
+
+    if (changePercentage > threshold) {
+      return KPITrend.up;
+    } else if (changePercentage < -threshold) {
+      return KPITrend.down;
+    } else {
+      return KPITrend.stable;
+    }
+  }
+}
+
+
+===== lib/data/local/preferences.dart =====
+import 'package:shared_preferences/shared_preferences.dart';
+
+class AppPreferences {
+  static const String _keyIsFirstRun = 'is_first_run';
+  static const String _keyUserId = 'user_id';
+  static const String _keyUserRole = 'user_role';
+  static const String _keyLocationEnabled = 'location_enabled';
+  static const String _keyBackgroundLocationEnabled =
+      'background_location_enabled';
+  static const String _keyLastSyncAt = 'last_sync_at';
+
+  static SharedPreferences? _prefs;
+
+  static Future<void> init() async {
+    _prefs ??= await SharedPreferences.getInstance();
+  }
+
+  static SharedPreferences get prefs {
+    if (_prefs == null) {
+      throw Exception(
+          'Preferences not initialized. Call AppPreferences.init() first.');
+    }
+    return _prefs!;
+  }
+
+  // Getters
+  static bool get isFirstRun => prefs.getBool(_keyIsFirstRun) ?? true;
+  static String? get userId => prefs.getString(_keyUserId);
+  static String? get userRole => prefs.getString(_keyUserRole);
+  static bool get isLocationEnabled =>
+      prefs.getBool(_keyLocationEnabled) ?? false;
+  static bool get isBackgroundLocationEnabled =>
+      prefs.getBool(_keyBackgroundLocationEnabled) ?? false;
+  static DateTime? get lastSyncAt {
+    final timestamp = prefs.getInt(_keyLastSyncAt);
+    return timestamp != null
+        ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+        : null;
+  }
+
+  // Setters
+  static Future<void> setIsFirstRun(bool value) =>
+      prefs.setBool(_keyIsFirstRun, value);
+  static Future<void> setUserId(String? value) => value != null
+      ? prefs.setString(_keyUserId, value)
+      : prefs.remove(_keyUserId);
+  static Future<void> setUserRole(String? value) => value != null
+      ? prefs.setString(_keyUserRole, value)
+      : prefs.remove(_keyUserRole);
+  static Future<void> setLocationEnabled(bool value) =>
+      prefs.setBool(_keyLocationEnabled, value);
+  static Future<void> setBackgroundLocationEnabled(bool value) =>
+      prefs.setBool(_keyBackgroundLocationEnabled, value);
+  static Future<void> setLastSyncAt(DateTime? value) => value != null
+      ? prefs.setInt(_keyLastSyncAt, value.millisecondsSinceEpoch)
+      : prefs.remove(_keyLastSyncAt);
+
+  static Future<void> clear() => prefs.clear();
+}
+
+
+===== lib/data/local/drift/tables.dart =====
+import 'package:drift/drift.dart';
+
+@DataClassName('CustomerEntity')
+class Customers extends Table {
+  TextColumn get id => text()();
+  TextColumn get companyId => text()();
+  TextColumn get code => text().nullable()();
+  TextColumn get name => text()();
+  TextColumn get email => text().nullable()();
+  TextColumn get phone => text().nullable()();
+  TextColumn get address => text().nullable()();
+  RealColumn get latitude => real().nullable()();
+  RealColumn get longitude => real().nullable()();
+  RealColumn get geoAccuracyM => real().nullable()();
+  TextColumn get createdBy => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+  BoolColumn get needsSync => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('VisitEntity')
+class Visits extends Table {
+  TextColumn get id => text()();
+  TextColumn get companyId => text()();
+  TextColumn get customerId => text()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get purpose => text()();
+  DateTimeColumn get startedAt => dateTime().nullable()();
+  DateTimeColumn get finishedAt => dateTime().nullable()();
+  RealColumn get checkinLatitude => real().nullable()();
+  RealColumn get checkinLongitude => real().nullable()();
+  RealColumn get checkoutLatitude => real().nullable()();
+  RealColumn get checkoutLongitude => real().nullable()();
+  RealColumn get checkinAccuracyM => real().nullable()();
+  RealColumn get checkoutAccuracyM => real().nullable()();
+  RealColumn get distanceM => real().nullable()();
+  TextColumn get notes => text().nullable()();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('ProductEntity')
+class Products extends Table {
+  TextColumn get id => text()();
+  TextColumn get companyId => text()();
+  TextColumn get sku => text().nullable()();
+  TextColumn get name => text()();
+  TextColumn get unit => text().nullable()();
+  RealColumn get tax => real().withDefault(const Constant(0.0))();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('OrderEntity')
+class Orders extends Table {
+  TextColumn get id => text()();
+  TextColumn get companyId => text()();
+  TextColumn get customerId => text().nullable()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get priceListId => text().nullable()();
+  TextColumn get status => text()();
+  RealColumn get subtotal => real().withDefault(const Constant(0.0))();
+  RealColumn get taxTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get discountTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get grandTotal => real().withDefault(const Constant(0.0))();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  BoolColumn get needsSync => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('OrderItemEntity')
+class OrderItems extends Table {
+  TextColumn get id => text()();
+  TextColumn get orderId => t
