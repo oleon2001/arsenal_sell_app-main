@@ -77,7 +77,9 @@ extension VisitPhotoX on VisitPhoto {
 
   /// Get formatted file size
   String get formattedFileSize {
-    if (fileSize == 0) return 'Tamaño desconocido';
+    if (fileSize == 0) {
+      return 'Tamaño desconocido';
+    }
 
     const int kb = 1024;
     const int mb = kb * 1024;
@@ -153,13 +155,17 @@ extension VisitPhotoX on VisitPhoto {
 
   /// Get formatted creation date
   String get formattedCreatedAt {
-    if (createdAt == null) return 'Fecha desconocida';
+    if (createdAt == null) {
+      return 'Fecha desconocida';
+    }
     return '${createdAt!.day.toString().padLeft(2, '0')}/${createdAt!.month.toString().padLeft(2, '0')}/${createdAt!.year} ${createdAt!.hour.toString().padLeft(2, '0')}:${createdAt!.minute.toString().padLeft(2, '0')}';
   }
 
   /// Get formatted upload date
   String get formattedUploadedAt {
-    if (uploadedAt == null) return 'No subida';
+    if (uploadedAt == null) {
+      return 'No subida';
+    }
     return '${uploadedAt!.day.toString().padLeft(2, '0')}/${uploadedAt!.month.toString().padLeft(2, '0')}/${uploadedAt!.year} ${uploadedAt!.hour.toString().padLeft(2, '0')}:${uploadedAt!.minute.toString().padLeft(2, '0')}';
   }
 
@@ -217,7 +223,9 @@ extension VisitPhotoX on VisitPhoto {
 
   /// Get coordinates as a formatted string
   String get formattedCoordinates {
-    if (!hasCoordinates) return 'Sin coordenadas';
+    if (!hasCoordinates) {
+      return 'Sin coordenadas';
+    }
     return '${latitude!.toStringAsFixed(6)}, ${longitude!.toStringAsFixed(6)}';
   }
 
@@ -226,7 +234,9 @@ extension VisitPhotoX on VisitPhoto {
     required double targetLat,
     required double targetLng,
   }) {
-    if (!hasCoordinates) return null;
+    if (!hasCoordinates) {
+      return null;
+    }
 
     // Simple distance calculation using Haversine formula
     const double earthRadius = 6371000; // Earth's radius in meters

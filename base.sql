@@ -1,860 +1,943 @@
-Supabase — SQL completo
--- =========================
--- 1) ENUMS Y EXTENSIONES
--- =========================
-create extension if not exists postgis;
-create extension if not exists pgcrypto;
-
-do $$ begin
-  create type user_role as enum ('ADMIN','SUPERVISOR','VENDEDOR','REPARTIDOR');
-exception when duplicate_object then null; end $$;
-
-do $$ begin
-  create type visit_purpose as enum ('VENTA','COBRO','ENTREGA','VISITA','AUDITORIA','DEVOLUCION','OTRO');
-exception when duplicate_object then null; end $$;
-
-do $$ begin
-  create type order_status as enum ('DRAFT','SENT','APPROVED','REJECTED','DELIVERED','CANCELLED');
-exception when duplicate_object then null; end $$;
-
-do $$ begin
-  create type delivery_status as enum ('PENDING','PARTIAL','DELIVERED','REJECTED');
-exception when duplicate_object then null; end $$;
+-- ========================================
+-- ARSENAL SELL ADMIN - ESQUEMA COMPLETO
+-- ========================================
+-- 
+-- Este archivo contiene el esquema completo de la base de datos
+-- para la aplicación Arsenal Sell Admin.
+-- 
+-- INSTRUCCIONES DE IMPORTACIÓN:
+-- 1. Abrir Supabase Dashboard
+-- 2. Ir a SQL Editor
+-- 3. Crear nueva consulta
+-- 4. Copiar y pegar todo este contenido
+-- 5. Ejecutar la consulta
+-- 
+-- NOTA: Asegúrate de que tu proyecto tenga habilitadas las extensiones:
+-- - postgis
+-- - pgcrypto
+-- ========================================
 
 -- =========================
--- 2) ORGANIZACIÓN BÁSICA
+-- 1) EXTENSIONES REQUERIDAS
 -- =========================
-create table if not exists companies (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  created_at timestamptz default now()
-);
 
-create table if not exists warehouses (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  name text not null,
-  address text,
-  created_at timestamptz default now()
-);
+-- Habilitar PostGIS para funcionalidades geoespaciales
+CREATE EXTENSION IF NOT EXISTS "postgis";
 
--- Perfil vinculado a auth.users
-create table if not exists profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  company_id uuid references companies(id) on delete set null,
-  full_name text,
-  phone text,
-  role user_role not null default 'VENDEDOR',
-  is_active boolean not null default true,
-  created_at timestamptz default now()
-);
+-- Habilitar pgcrypto para funciones criptográficas
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- =========================
--- 3) CLIENTES Y GEO
+-- 2) ENUMS DEL SISTEMA
 -- =========================
-create table if not exists customers (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  code text unique,
-  name text not null,
-  email text,
-  phone text,
-  address text,
-  -- Geopunto: WGS84
-  location geography(Point,4326),
-  geo_accuracy_m numeric,
-  created_by uuid references profiles(id) on delete set null,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
 
-create index if not exists customers_company_idx on customers(company_id);
-create index if not exists customers_loc_idx on customers using gist (location);
+-- Roles de usuario
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+    CREATE TYPE user_role AS ENUM (
+      'ADMIN',
+      'SUPERVISOR', 
+      'VENDEDOR',
+      'REPARTIDOR'
+    );
+  END IF;
+END $$;
 
--- geocercas opcionales por vendedor
-create table if not exists geofences (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  owner_id uuid references profiles(id) on delete cascade,
-  radius_m integer not null default 10,
-  center geography(Point,4326) not null,
-  created_at timestamptz default now()
-);
+-- Propósitos de visita
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'visit_purpose') THEN
+    CREATE TYPE visit_purpose AS ENUM (
+      'VENTA',
+      'COBRO',
+      'ENTREGA',
+      'VISITA',
+      'AUDITORIA',
+      'DEVOLUCION',
+      'OTRO'
+    );
+  END IF;
+END $$;
+
+-- Estados de pedido
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status') THEN
+    CREATE TYPE order_status AS ENUM (
+      'DRAFT',
+      'SENT',
+      'APPROVED',
+      'REJECTED',
+      'DELIVERED',
+      'CANCELLED'
+    );
+  END IF;
+END $$;
+
+-- Estados de entrega
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'delivery_status') THEN
+    CREATE TYPE delivery_status AS ENUM (
+      'PENDING',
+      'PARTIAL',
+      'DELIVERED',
+      'REJECTED'
+    );
+  END IF;
+END $$;
+
+-- Tipos de movimiento de inventario
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'inventory_movement_type') THEN
+    CREATE TYPE inventory_movement_type AS ENUM (
+      'PURCHASE',      -- Compra
+      'SALE',          -- Venta
+      'ADJUSTMENT',    -- Ajuste manual
+      'TRANSFER_IN',   -- Transferencia entrada
+      'TRANSFER_OUT',  -- Transferencia salida
+      'RETURN',        -- Devolución
+      'DAMAGED',       -- Dañado
+      'EXPIRED',       -- Vencido
+      'LOSS',          -- Pérdida
+      'INITIAL'        -- Stock inicial
+    );
+  END IF;
+END $$;
+
+-- Estados de transferencia
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transfer_status') THEN
+    CREATE TYPE transfer_status AS ENUM (
+      'PENDING',
+      'IN_TRANSIT',
+      'COMPLETED',
+      'CANCELLED'
+    );
+  END IF;
+END $$;
 
 -- =========================
--- 4) PLANIFICACIÓN
+-- 3) TABLAS DE ORGANIZACIÓN
 -- =========================
-create table if not exists routes (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  name text not null,
-  date date not null,
-  owner_id uuid references profiles(id) on delete set null,
-  created_at timestamptz default now()
+
+-- Compañías
+CREATE TABLE IF NOT EXISTS companies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-create table if not exists route_stops (
-  id uuid primary key default gen_random_uuid(),
-  route_id uuid references routes(id) on delete cascade,
-  customer_id uuid references customers(id) on delete cascade,
-  planned_time timestamptz,
-  sequence int,
-  notes text
+-- Almacenes
+CREATE TABLE IF NOT EXISTS warehouses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  address TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-create index if not exists route_stops_route_idx on route_stops(route_id);
-
--- =========================
--- 5) VISITAS, EVIDENCIAS, FIRMAS
--- =========================
-create table if not exists visits (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  customer_id uuid references customers(id) on delete cascade,
-  user_id uuid references profiles(id) on delete set null,
-  purpose visit_purpose not null,
-  started_at timestamptz default now(),
-  finished_at timestamptz,
-  -- punto real de check-in
-  checkin geography(Point,4326),
-  checkout geography(Point,4326),
-  checkin_accuracy_m numeric,
-  checkout_accuracy_m numeric,
-  distance_m numeric,
-  notes text,
-  is_synced boolean default false
-);
-
-create table if not exists visit_photos (
-  id uuid primary key default gen_random_uuid(),
-  visit_id uuid references visits(id) on delete cascade,
-  storage_path text not null,
-  created_at timestamptz default now()
-);
-
-create table if not exists visit_signatures (
-  id uuid primary key default gen_random_uuid(),
-  visit_id uuid references visits(id) on delete cascade,
-  storage_path text not null,
-  signed_by text,
-  created_at timestamptz default now()
-);
-
--- =========================
--- 6) PRODUCTOS, PRECIOS, PROMOS
--- =========================
-create table if not exists products (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  sku text unique,
-  name text not null,
-  unit text,
-  tax numeric default 0,
-  active boolean default true,
-  created_at timestamptz default now()
-);
-
-create table if not exists price_lists (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  name text not null,
-  currency text default 'USD',
-  created_at timestamptz default now()
-);
-
-create table if not exists prices (
-  id uuid primary key default gen_random_uuid(),
-  price_list_id uuid references price_lists(id) on delete cascade,
-  product_id uuid references products(id) on delete cascade,
-  price numeric not null,
-  unique(price_list_id, product_id)
-);
-
-create table if not exists promotions (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  name text not null,
-  starts_at date,
-  ends_at date,
-  json_rules jsonb not null, -- reglas Bx1y, descuentos, etc.
-  active boolean default true
+-- Perfiles de usuario (vinculados a auth.users)
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+  full_name TEXT,
+  phone TEXT,
+  role user_role NOT NULL DEFAULT 'VENDEDOR',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =========================
--- 7) PEDIDOS, ENTREGAS, COBROS, DEVOLUCIONES
+-- 4) TABLAS DE CLIENTES Y GEOGRAFÍA
 -- =========================
-create table if not exists orders (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  customer_id uuid references customers(id) on delete set null,
-  user_id uuid references profiles(id) on delete set null,
-  price_list_id uuid references price_lists(id) on delete set null,
-  status order_status not null default 'DRAFT',
-  subtotal numeric default 0,
-  tax_total numeric default 0,
-  discount_total numeric default 0,
-  grand_total numeric default 0,
-  created_at timestamptz default now()
+
+-- Clientes
+CREATE TABLE IF NOT EXISTS customers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  code TEXT UNIQUE,
+  name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  -- Punto geográfico: WGS84
+  location GEOGRAPHY(POINT, 4326),
+  geo_accuracy_m NUMERIC,
+  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-create table if not exists order_items (
-  id uuid primary key default gen_random_uuid(),
-  order_id uuid references orders(id) on delete cascade,
-  product_id uuid references products(id) on delete restrict,
-  qty numeric not null,
-  price numeric not null,
-  discount numeric default 0,
-  total numeric not null
-);
-
-create table if not exists deliveries (
-  id uuid primary key default gen_random_uuid(),
-  order_id uuid references orders(id) on delete cascade,
-  status delivery_status not null default 'PENDING',
-  delivered_at timestamptz,
-  notes text
-);
-
-create table if not exists payments (
-  id uuid primary key default gen_random_uuid(),
-  order_id uuid references orders(id) on delete set null,
-  customer_id uuid references customers(id) on delete set null,
-  user_id uuid references profiles(id) on delete set null,
-  amount numeric not null,
-  method text,
-  paid_at timestamptz default now(),
-  notes text
-);
-
-create table if not exists returns (
-  id uuid primary key default gen_random_uuid(),
-  order_id uuid references orders(id) on delete set null,
-  product_id uuid references products(id) on delete set null,
-  qty numeric not null,
-  reason text,
-  created_at timestamptz default now()
+-- Geocercas por vendedor
+CREATE TABLE IF NOT EXISTS geofences (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  owner_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  radius_m INTEGER NOT NULL DEFAULT 10,
+  center GEOGRAPHY(POINT, 4326) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =========================
--- 8) FORMULARIOS DINÁMICOS / ENCUESTAS
+-- 5) TABLAS DE PLANIFICACIÓN
 -- =========================
-create table if not exists form_templates (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  name text not null,
-  schema jsonb not null, -- JSON Schema o definición propia
-  created_at timestamptz default now()
+
+-- Rutas
+CREATE TABLE IF NOT EXISTS routes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  date DATE NOT NULL,
+  owner_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-create table if not exists form_responses (
-  id uuid primary key default gen_random_uuid(),
-  template_id uuid references form_templates(id) on delete set null,
-  customer_id uuid references customers(id) on delete set null,
-  visit_id uuid references visits(id) on delete set null,
-  user_id uuid references profiles(id) on delete set null,
-  answers jsonb not null,
-  created_at timestamptz default now()
-);
-
--- =========================
--- 9) TRACKING EN TIEMPO REAL
--- =========================
-create table if not exists tracking_locations (
-  id bigserial primary key,
-  company_id uuid references companies(id) on delete cascade,
-  user_id uuid references profiles(id) on delete cascade,
-  at timestamptz not null default now(),
-  point geography(Point,4326) not null,
-  speed_m_s numeric,
-  accuracy_m numeric
-);
-
-create index if not exists tracking_user_time_idx on tracking_locations(user_id, at desc);
-create index if not exists tracking_point_idx on tracking_locations using gist(point);
-
--- =========================
--- 10) BITÁCORA / AUDITORÍA
--- =========================
-create table if not exists audit_logs (
-  id bigserial primary key,
-  company_id uuid references companies(id) on delete cascade,
-  actor_id uuid references profiles(id),
-  action text not null,
-  entity text,
-  entity_id text,
-  details jsonb,
-  created_at timestamptz default now()
+-- Paradas de ruta
+CREATE TABLE IF NOT EXISTS route_stops (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  route_id UUID REFERENCES routes(id) ON DELETE CASCADE,
+  customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+  planned_time TIMESTAMPTZ,
+  sequence INTEGER,
+  notes TEXT
 );
 
 -- =========================
--- 11) POLÍTICAS RLS
+-- 6) TABLAS DE VISITAS Y EVIDENCIAS
 -- =========================
-alter table companies enable row level security;
-alter table warehouses enable row level security;
-alter table profiles enable row level security;
-alter table customers enable row level security;
-alter table geofences enable row level security;
-alter table routes enable row level security;
-alter table route_stops enable row level security;
-alter table visits enable row level security;
-alter table visit_photos enable row level security;
-alter table visit_signatures enable row level security;
-alter table products enable row level security;
-alter table price_lists enable row level security;
-alter table prices enable row level security;
-alter table promotions enable row level security;
-alter table orders enable row level security;
-alter table order_items enable row level security;
-alter table deliveries enable row level security;
-alter table payments enable row level security;
-alter table returns enable row level security;
-alter table form_templates enable row level security;
-alter table form_responses enable row level security;
-alter table tracking_locations enable row level security;
-alter table audit_logs enable row level security;
 
--- helper para compañía del usuario
-create or replace view me as
-select p.*, au.email
-from profiles p
-join auth.users au on au.id = p.id
-where p.id = auth.uid();
+-- Visitas
+CREATE TABLE IF NOT EXISTS visits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  purpose visit_purpose NOT NULL,
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  finished_at TIMESTAMPTZ,
+  -- Puntos reales de check-in/out
+  checkin GEOGRAPHY(POINT, 4326),
+  checkout GEOGRAPHY(POINT, 4326),
+  checkin_accuracy_m NUMERIC,
+  checkout_accuracy_m NUMERIC,
+  distance_m NUMERIC,
+  notes TEXT,
+  is_synced BOOLEAN DEFAULT FALSE
+);
 
--- política genérica: ver solo registros de mi compañía
-create policy "company_read"
-on customers for select
-using (company_id = (select company_id from me));
+-- Fotos de visita
+CREATE TABLE IF NOT EXISTS visit_photos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  visit_id UUID REFERENCES visits(id) ON DELETE CASCADE,
+  storage_path TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- Repite por tablas clave (ejemplos representativos):
-create policy "company_read_profiles" on profiles for select
-using (company_id = (select company_id from me));
+-- Firmas de visita
+CREATE TABLE IF NOT EXISTS visit_signatures (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  visit_id UUID REFERENCES visits(id) ON DELETE CASCADE,
+  storage_path TEXT NOT NULL,
+  signed_by TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-create policy "company_rw_customers" on customers
-for all using (company_id = (select company_id from me))
-with check (company_id = (select company_id from me));
+-- =========================
+-- 7) TABLAS DE PRODUCTOS Y PRECIOS
+-- =========================
 
-create policy "company_rw_orders" on orders
-for all using (company_id = (select company_id from me))
-with check (company_id = (select company_id from me));
+-- Productos
+CREATE TABLE IF NOT EXISTS products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  sku TEXT UNIQUE,
+  name TEXT NOT NULL,
+  unit TEXT,
+  tax NUMERIC DEFAULT 0,
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-create policy "company_rw_visits" on visits
-for all using (company_id = (select company_id from me))
-with check (company_id = (select company_id from me));
+-- Listas de precios
+CREATE TABLE IF NOT EXISTS price_lists (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  currency TEXT DEFAULT 'USD',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-create policy "company_rw_tracking" on tracking_locations
-for all using (company_id = (select company_id from me))
-with check (company_id = (select company_id from me));
+-- Precios por producto
+CREATE TABLE IF NOT EXISTS prices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  price_list_id UUID REFERENCES price_lists(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  price NUMERIC NOT NULL,
+  UNIQUE(price_list_id, product_id)
+);
+
+-- Promociones
+CREATE TABLE IF NOT EXISTS promotions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  starts_at DATE,
+  ends_at DATE,
+  json_rules JSONB NOT NULL, -- Reglas Bx1y, descuentos, etc.
+  active BOOLEAN DEFAULT TRUE
+);
+
+-- =========================
+-- 8) TABLAS DE VENTAS Y ENTREGAS
+-- =========================
+
+-- Pedidos
+CREATE TABLE IF NOT EXISTS orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  price_list_id UUID REFERENCES price_lists(id) ON DELETE SET NULL,
+  status order_status NOT NULL DEFAULT 'DRAFT',
+  subtotal NUMERIC DEFAULT 0,
+  tax_total NUMERIC DEFAULT 0,
+  discount_total NUMERIC DEFAULT 0,
+  grand_total NUMERIC DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Items de pedido
+CREATE TABLE IF NOT EXISTS order_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE RESTRICT,
+  qty NUMERIC NOT NULL,
+  price NUMERIC NOT NULL,
+  discount NUMERIC DEFAULT 0,
+  total NUMERIC NOT NULL
+);
+
+-- Entregas
+CREATE TABLE IF NOT EXISTS deliveries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+  status delivery_status NOT NULL DEFAULT 'PENDING',
+  delivered_at TIMESTAMPTZ,
+  notes TEXT
+);
+
+-- Pagos
+CREATE TABLE IF NOT EXISTS payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+  customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  amount NUMERIC NOT NULL,
+  method TEXT,
+  paid_at TIMESTAMPTZ DEFAULT NOW(),
+  notes TEXT
+);
+
+-- Devoluciones
+CREATE TABLE IF NOT EXISTS returns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+  product_id UUID REFERENCES products(id) ON DELETE SET NULL,
+  qty NUMERIC NOT NULL,
+  reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =========================
+-- 9) TABLAS DE FORMULARIOS DINÁMICOS
+-- =========================
+
+-- Plantillas de formulario
+CREATE TABLE IF NOT EXISTS form_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  schema JSONB NOT NULL, -- JSON Schema o definición propia
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Respuestas de formulario
+CREATE TABLE IF NOT EXISTS form_responses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id UUID REFERENCES form_templates(id) ON DELETE SET NULL,
+  customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+  visit_id UUID REFERENCES visits(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  answers JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =========================
+-- 10) TABLAS DE SEGUIMIENTO EN TIEMPO REAL
+-- =========================
+
+-- Ubicaciones de seguimiento
+CREATE TABLE IF NOT EXISTS tracking_locations (
+  id BIGSERIAL PRIMARY KEY,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  point GEOGRAPHY(POINT, 4326) NOT NULL,
+  speed_m_s NUMERIC,
+  accuracy_m NUMERIC
+);
+
+-- =========================
+-- 11) TABLAS DE AUDITORÍA
+-- =========================
+
+-- Bitácora de auditoría
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id BIGSERIAL PRIMARY KEY,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  actor_id UUID REFERENCES profiles(id),
+  action TEXT NOT NULL,
+  entity TEXT,
+  entity_id TEXT,
+  details JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =========================
+-- 12) TABLAS DE INVENTARIO
+-- =========================
+
+-- Inventario por almacén
+CREATE TABLE IF NOT EXISTS inventories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  warehouse_id UUID REFERENCES warehouses(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  current_stock NUMERIC NOT NULL DEFAULT 0,
+  reserved_stock NUMERIC NOT NULL DEFAULT 0,
+  available_stock NUMERIC GENERATED ALWAYS AS (current_stock - reserved_stock) STORED,
+  min_stock NUMERIC DEFAULT 0,
+  max_stock NUMERIC,
+  reorder_point NUMERIC,
+  unit_cost NUMERIC DEFAULT 0,
+  last_updated TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(warehouse_id, product_id)
+);
+
+-- Movimientos de inventario
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  warehouse_id UUID REFERENCES warehouses(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  movement_type inventory_movement_type NOT NULL,
+  quantity NUMERIC NOT NULL,
+  unit_cost NUMERIC DEFAULT 0,
+  total_cost NUMERIC GENERATED ALWAYS AS (quantity * unit_cost) STORED,
+  reference_id UUID, -- ID de pedido, transferencia, etc.
+  reference_type TEXT, -- 'order', 'transfer', 'adjustment', etc.
+  notes TEXT,
+  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Transferencias entre almacenes
+CREATE TABLE IF NOT EXISTS inventory_transfers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  from_warehouse_id UUID REFERENCES warehouses(id) ON DELETE CASCADE,
+  to_warehouse_id UUID REFERENCES warehouses(id) ON DELETE CASCADE,
+  status transfer_status DEFAULT 'PENDING',
+  requested_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  approved_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  shipped_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  received_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  requested_at TIMESTAMPTZ DEFAULT NOW(),
+  approved_at TIMESTAMPTZ,
+  shipped_at TIMESTAMPTZ,
+  received_at TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Items de transferencia
+CREATE TABLE IF NOT EXISTS transfer_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transfer_id UUID REFERENCES inventory_transfers(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  quantity NUMERIC NOT NULL,
+  transferred_quantity NUMERIC DEFAULT 0,
+  unit_cost NUMERIC DEFAULT 0,
+  notes TEXT
+);
+
+-- Alertas de inventario
+CREATE TABLE IF NOT EXISTS inventory_alerts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  warehouse_id UUID REFERENCES warehouses(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  alert_type TEXT NOT NULL CHECK (alert_type IN ('LOW_STOCK', 'OUT_OF_STOCK', 'OVERSTOCK', 'EXPIRING_SOON')),
+  threshold NUMERIC,
+  current_value NUMERIC,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  resolved_by UUID REFERENCES profiles(id) ON DELETE SET NULL
+);
+
+-- Configuración de alertas por producto
+CREATE TABLE IF NOT EXISTS product_alert_config (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  low_stock_threshold NUMERIC DEFAULT 10,
+  out_of_stock_threshold NUMERIC DEFAULT 0,
+  overstock_threshold NUMERIC,
+  expiring_days_threshold INTEGER DEFAULT 30,
+  enable_low_stock_alert BOOLEAN DEFAULT TRUE,
+  enable_out_of_stock_alert BOOLEAN DEFAULT TRUE,
+  enable_overstock_alert BOOLEAN DEFAULT FALSE,
+  enable_expiring_alert BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(product_id)
+);
+
+-- =========================
+-- 13) TABLAS DE EMAIL Y NOTIFICACIONES
+-- =========================
+
+-- Cola de emails
+CREATE TABLE IF NOT EXISTS email_queue (
+  id BIGSERIAL PRIMARY KEY,
+  to_email TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  sent_at TIMESTAMPTZ
+);
+
+-- =========================
+-- 14) ÍNDICES PARA OPTIMIZACIÓN
+-- =========================
+
+-- Índices de clientes
+CREATE INDEX IF NOT EXISTS customers_company_idx ON customers(company_id);
+CREATE INDEX IF NOT EXISTS customers_loc_idx ON customers USING GIST (location);
+
+-- Índices de visitas
+CREATE INDEX IF NOT EXISTS visits_company_idx ON visits(company_id);
+CREATE INDEX IF NOT EXISTS visits_customer_idx ON visits(customer_id);
+CREATE INDEX IF NOT EXISTS visits_user_idx ON visits(user_id);
+CREATE INDEX IF NOT EXISTS visits_date_idx ON visits(started_at);
+
+-- Índices de pedidos
+CREATE INDEX IF NOT EXISTS orders_company_idx ON orders(company_id);
+CREATE INDEX IF NOT EXISTS orders_customer_idx ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS orders_user_idx ON orders(user_id);
+CREATE INDEX IF NOT EXISTS orders_status_idx ON orders(status);
+CREATE INDEX IF NOT EXISTS orders_date_idx ON orders(created_at);
+
+-- Índices de inventario
+CREATE INDEX IF NOT EXISTS inventories_warehouse_idx ON inventories(warehouse_id);
+CREATE INDEX IF NOT EXISTS inventories_product_idx ON inventories(product_id);
+CREATE INDEX IF NOT EXISTS inventories_company_idx ON inventories(company_id);
+CREATE INDEX IF NOT EXISTS inventories_stock_idx ON inventories(available_stock);
+
+CREATE INDEX IF NOT EXISTS inventory_movements_warehouse_idx ON inventory_movements(warehouse_id);
+CREATE INDEX IF NOT EXISTS inventory_movements_product_idx ON inventory_movements(product_id);
+CREATE INDEX IF NOT EXISTS inventory_movements_type_idx ON inventory_movements(movement_type);
+CREATE INDEX IF NOT EXISTS inventory_movements_date_idx ON inventory_movements(created_at);
+CREATE INDEX IF NOT EXISTS inventory_movements_reference_idx ON inventory_movements(reference_type, reference_id);
+
+CREATE INDEX IF NOT EXISTS inventory_transfers_from_idx ON inventory_transfers(from_warehouse_id);
+CREATE INDEX IF NOT EXISTS inventory_transfers_to_idx ON inventory_transfers(to_warehouse_id);
+CREATE INDEX IF NOT EXISTS inventory_transfers_status_idx ON inventory_transfers(status);
+CREATE INDEX IF NOT EXISTS inventory_transfers_date_idx ON inventory_transfers(created_at);
+
+CREATE INDEX IF NOT EXISTS inventory_alerts_active_idx ON inventory_alerts(is_active);
+CREATE INDEX IF NOT EXISTS inventory_alerts_type_idx ON inventory_alerts(alert_type);
+CREATE INDEX IF NOT EXISTS inventory_alerts_date_idx ON inventory_alerts(created_at);
+
+-- Índices de seguimiento
+CREATE INDEX IF NOT EXISTS tracking_user_time_idx ON tracking_locations(user_id, at DESC);
+CREATE INDEX IF NOT EXISTS tracking_point_idx ON tracking_locations USING GIST(point);
+
+-- =========================
+-- 15) ROW LEVEL SECURITY (RLS)
+-- =========================
+
+-- Habilitar RLS en todas las tablas
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE warehouses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE geofences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE routes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE route_stops ENABLE ROW LEVEL SECURITY;
+ALTER TABLE visits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE visit_photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE visit_signatures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE price_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE promotions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE returns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_responses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tracking_locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_transfers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transfer_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_alert_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_queue ENABLE ROW LEVEL SECURITY;
+
+-- =========================
+-- 16) VISTA AUXILIAR PARA RLS
+-- =========================
+
+-- Vista helper para obtener información del usuario actual
+CREATE OR REPLACE VIEW me AS
+SELECT p.*, au.email
+FROM profiles p
+JOIN auth.users au ON au.id = p.id
+WHERE p.id = auth.uid();
+
+-- =========================
+-- 17) POLÍTICAS RLS BÁSICAS
+-- =========================
+
+-- Política genérica: ver solo registros de mi compañía
+CREATE POLICY "company_read" ON customers
+FOR SELECT USING (company_id = (SELECT company_id FROM me));
+
+CREATE POLICY "company_rw_customers" ON customers
+FOR ALL USING (company_id = (SELECT company_id FROM me))
+WITH CHECK (company_id = (SELECT company_id FROM me));
+
+CREATE POLICY "company_rw_orders" ON orders
+FOR ALL USING (company_id = (SELECT company_id FROM me))
+WITH CHECK (company_id = (SELECT company_id FROM me));
+
+CREATE POLICY "company_rw_visits" ON visits
+FOR ALL USING (company_id = (SELECT company_id FROM me))
+WITH CHECK (company_id = (SELECT company_id FROM me));
+
+CREATE POLICY "company_rw_tracking" ON tracking_locations
+FOR ALL USING (company_id = (SELECT company_id FROM me))
+WITH CHECK (company_id = (SELECT company_id FROM me));
+
+CREATE POLICY "company_rw_inventories" ON inventories
+FOR ALL USING (company_id = (SELECT company_id FROM me))
+WITH CHECK (company_id = (SELECT company_id FROM me));
+
+CREATE POLICY "company_rw_inventory_movements" ON inventory_movements
+FOR ALL USING (company_id = (SELECT company_id FROM me))
+WITH CHECK (company_id = (SELECT company_id FROM me));
 
 -- Solo ADMIN/SUPERVISOR pueden escribir plantillas y promociones
-create policy "forms_admin_write" on form_templates
-for insert with check ((select role from me) in ('ADMIN','SUPERVISOR'));
-create policy "forms_admin_update" on form_templates
-for update using ((select role from me) in ('ADMIN','SUPERVISOR'))
-with check ((select role from me) in ('ADMIN','SUPERVISOR'));
+CREATE POLICY "forms_admin_write" ON form_templates
+FOR INSERT WITH CHECK ((SELECT role FROM me) IN ('ADMIN','SUPERVISOR'));
+
+CREATE POLICY "forms_admin_update" ON form_templates
+FOR UPDATE USING ((SELECT role FROM me) IN ('ADMIN','SUPERVISOR'))
+WITH CHECK ((SELECT role FROM me) IN ('ADMIN','SUPERVISOR'));
 
 -- =========================
--- 12) FUNCIONES Y TRIGGERS
+-- 18) FUNCIONES Y TRIGGERS
 -- =========================
 
--- Auto-asignar company_id en tablas donde falte, basado en user
-create or replace function set_company_id()
-returns trigger as $$
-begin
-  if new.company_id is null then
-    new.company_id := (select company_id from profiles where id = auth.uid());
-  end if;
-  return new;
-end $$ language plpgsql;
+-- Función para auto-asignar company_id
+CREATE OR REPLACE FUNCTION set_company_id()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.company_id IS NULL THEN
+    NEW.company_id := (SELECT company_id FROM profiles WHERE id = auth.uid());
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
 
-create trigger trg_set_company_customers
-before insert on customers
-for each row execute function set_company_id();
+-- Triggers para auto-asignar company_id
+CREATE TRIGGER trg_set_company_customers
+  BEFORE INSERT ON customers
+  FOR EACH ROW EXECUTE FUNCTION set_company_id();
 
-create trigger trg_set_company_orders
-before insert on orders
-for each row execute function set_company_id();
+CREATE TRIGGER trg_set_company_orders
+  BEFORE INSERT ON orders
+  FOR EACH ROW EXECUTE FUNCTION set_company_id();
 
-create trigger trg_set_company_visits
-before insert on visits
-for each row execute function set_company_id();
+CREATE TRIGGER trg_set_company_visits
+  BEFORE INSERT ON visits
+  FOR EACH ROW EXECUTE FUNCTION set_company_id();
 
-create trigger trg_set_company_tracking
-before insert on tracking_locations
-for each row execute function set_company_id();
+CREATE TRIGGER trg_set_company_tracking
+  BEFORE INSERT ON tracking_locations
+  FOR EACH ROW EXECUTE FUNCTION set_company_id();
 
--- Validar geocerca de 10m por defecto (se puede ajustar por geofence específica)
-create or replace function validate_visit_geofence()
-returns trigger as $$
-declare
-  cust_point geography(Point,4326);
-  radius_m int := 10;
-begin
-  select location into cust_point from customers where id = new.customer_id;
-  if cust_point is null then
-    return new;
-  end if;
+CREATE TRIGGER trg_set_company_inventory_movements
+  BEFORE INSERT ON inventory_movements
+  FOR EACH ROW EXECUTE FUNCTION set_company_id();
 
-  -- si existe geofence personalizada para el usuario, sobrescribir radio/centro
-  select radius_m, center into radius_m, cust_point
-  from geofences
-  where owner_id = new.user_id
-  order by created_at desc
-  limit 1;
+-- Función para validar geocerca de visitas
+CREATE OR REPLACE FUNCTION validate_visit_geofence()
+RETURNS TRIGGER AS $$
+DECLARE
+  cust_point GEOGRAPHY(POINT, 4326);
+  radius_m INTEGER := 10;
+BEGIN
+  SELECT location INTO cust_point FROM customers WHERE id = NEW.customer_id;
+  IF cust_point IS NULL THEN
+    RETURN NEW;
+  END IF;
 
-  if new.checkin is not null and cust_point is not null then
-    if st_distance(new.checkin, cust_point) > radius_m then
-      raise exception 'Check-in fuera de geocerca (%.2f m > % m)', st_distance(new.checkin, cust_point), radius_m;
-    end if;
-  end if;
-  return new;
-end $$ language plpgsql;
+  -- Si existe geofence personalizada para el usuario, sobrescribir radio/centro
+  SELECT radius_m, center INTO radius_m, cust_point
+  FROM geofences
+  WHERE owner_id = NEW.user_id
+  ORDER BY created_at DESC
+  LIMIT 1;
 
-create trigger trg_validate_visit_geofence
-before insert on visits
-for each row execute function validate_visit_geofence();
+  IF NEW.checkin IS NOT NULL AND cust_point IS NOT NULL THEN
+    IF ST_Distance(NEW.checkin, cust_point) > radius_m THEN
+      RAISE EXCEPTION 'Check-in fuera de geocerca (%.2f m > % m)', ST_Distance(NEW.checkin, cust_point), radius_m;
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
 
--- Recalcular totales de pedido
-create or replace function recalc_order_totals(p_order uuid)
-returns void as $$
-update orders o set
-  subtotal = coalesce(x.subtotal,0),
-  tax_total = coalesce(x.tax_total,0),
-  discount_total = coalesce(x.discount_total,0),
-  grand_total = coalesce(x.subtotal,0) + coalesce(x.tax_total,0) - coalesce(x.discount_total,0)
-from (
-  select
+-- Trigger para validar geocerca
+CREATE TRIGGER trg_validate_visit_geofence
+  BEFORE INSERT ON visits
+  FOR EACH ROW EXECUTE FUNCTION validate_visit_geofence();
+
+-- Función para recalcular totales de pedido
+CREATE OR REPLACE FUNCTION recalc_order_totals(p_order UUID)
+RETURNS VOID AS $$
+UPDATE orders o SET
+  subtotal = COALESCE(x.subtotal, 0),
+  tax_total = COALESCE(x.tax_total, 0),
+  discount_total = COALESCE(x.discount_total, 0),
+  grand_total = COALESCE(x.subtotal, 0) + COALESCE(x.tax_total, 0) - COALESCE(x.discount_total, 0)
+FROM (
+  SELECT
     oi.order_id,
-    sum(oi.price * oi.qty) as subtotal,
-    sum(oi.discount) as discount_total,
-    sum((oi.price * oi.qty - oi.discount) * (coalesce(p.tax,0)/100.0)) as tax_total
-  from order_items oi
-  left join products p on p.id = oi.product_id
-  where oi.order_id = p_order
-  group by oi.order_id
+    SUM(oi.price * oi.qty) AS subtotal,
+    SUM(oi.discount) AS discount_total,
+    SUM((oi.price * oi.qty - oi.discount) * (COALESCE(p.tax, 0) / 100.0)) AS tax_total
+  FROM order_items oi
+  LEFT JOIN products p ON p.id = oi.product_id
+  WHERE oi.order_id = p_order
+  GROUP BY oi.order_id
 ) x
-where o.id = x.order_id;
-$$ language sql;
+WHERE o.id = x.order_id;
+$$ LANGUAGE sql;
 
-create or replace function trg_recalc_order_totals()
-returns trigger as $$
-begin
-  perform recalc_order_totals(new.order_id);
-  return new;
-end $$ language plpgsql;
+-- Trigger para recalcular totales
+CREATE OR REPLACE FUNCTION trg_recalc_order_totals()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM recalc_order_totals(NEW.order_id);
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
 
-create trigger order_items_after_iud
-after insert or update or delete on order_items
-for each row execute function trg_recalc_order_totals();
+CREATE TRIGGER order_items_after_iud
+  AFTER INSERT OR UPDATE OR DELETE ON order_items
+  FOR EACH ROW EXECUTE FUNCTION trg_recalc_order_totals();
 
--- =========================
--- 13) STORAGE BUCKETS
--- =========================
-insert into storage.buckets (id, name, public) values
-  ('evidence-photos','evidence-photos', false)
-  on conflict (id) do nothing;
+-- Función para actualizar stock automáticamente
+CREATE OR REPLACE FUNCTION update_inventory_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Actualizar inventario
+  INSERT INTO inventories (company_id, warehouse_id, product_id, current_stock, unit_cost)
+  VALUES (NEW.company_id, NEW.warehouse_id, NEW.product_id, NEW.quantity, NEW.unit_cost)
+  ON CONFLICT (warehouse_id, product_id)
+  DO UPDATE SET
+    current_stock = inventories.current_stock + NEW.quantity,
+    unit_cost = CASE 
+      WHEN NEW.quantity > 0 THEN 
+        (inventories.current_stock * inventories.unit_cost + NEW.quantity * NEW.unit_cost) / 
+        (inventories.current_stock + NEW.quantity)
+      ELSE inventories.unit_cost
+    END,
+    last_updated = NOW();
+  
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
 
-insert into storage.buckets (id, name, public) values
-  ('signatures','signatures', false)
-  on conflict (id) do nothing;
+-- Trigger para actualizar inventario al crear movimientos
+CREATE TRIGGER trg_update_inventory_stock
+  AFTER INSERT ON inventory_movements
+  FOR EACH ROW EXECUTE FUNCTION update_inventory_stock();
 
-insert into storage.buckets (id, name, public) values
-  ('documents','documents', false)
-  on conflict (id) do nothing;
+-- Función para verificar alertas de inventario
+CREATE OR REPLACE FUNCTION check_inventory_alerts()
+RETURNS TRIGGER AS $$
+DECLARE
+  alert_config RECORD;
+  current_stock NUMERIC;
+BEGIN
+  -- Obtener configuración de alertas
+  SELECT * INTO alert_config 
+  FROM product_alert_config 
+  WHERE product_id = NEW.product_id;
+  
+  IF NOT FOUND THEN
+    -- Usar configuración por defecto
+    alert_config.low_stock_threshold := 10;
+    alert_config.out_of_stock_threshold := 0;
+    alert_config.enable_low_stock_alert := TRUE;
+    alert_config.enable_out_of_stock_alert := TRUE;
+  END IF;
+  
+  current_stock := NEW.available_stock;
+  
+  -- Verificar stock bajo
+  IF alert_config.enable_low_stock_alert AND current_stock <= alert_config.low_stock_threshold AND current_stock > 0 THEN
+    INSERT INTO inventory_alerts (company_id, warehouse_id, product_id, alert_type, threshold, current_value)
+    VALUES (NEW.company_id, NEW.warehouse_id, NEW.product_id, 'LOW_STOCK', alert_config.low_stock_threshold, current_stock)
+    ON CONFLICT DO NOTHING;
+  END IF;
+  
+  -- Verificar sin stock
+  IF alert_config.enable_out_of_stock_alert AND current_stock <= alert_config.out_of_stock_threshold THEN
+    INSERT INTO inventory_alerts (company_id, warehouse_id, product_id, alert_type, threshold, current_value)
+    VALUES (NEW.company_id, NEW.warehouse_id, NEW.product_id, 'OUT_OF_STOCK', alert_config.out_of_stock_threshold, current_stock)
+    ON CONFLICT DO NOTHING;
+  END IF;
+  
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
 
--- políticas de storage por compañía (ruta: company_id/user_id/...)
-create policy "evidence read own company" on storage.objects
-for select using (
-  bucket_id in ('evidence-photos','signatures','documents')
-  and (exists (
-    select 1 from profiles p
-    where p.id = auth.uid()
-      and split_part(storage.objects.name,'/',1) = p.company_id::text
-  ))
-);
+-- Trigger para verificar alertas al actualizar inventario
+CREATE TRIGGER trg_check_inventory_alerts
+  AFTER UPDATE ON inventories
+  FOR EACH ROW EXECUTE FUNCTION check_inventory_alerts();
 
-create policy "evidence write own company" on storage.objects
-for insert with check (
-  bucket_id in ('evidence-photos','signatures','documents')
-  and (exists (
-    select 1 from profiles p
-    where p.id = auth.uid()
-      and split_part(name,'/',1) = p.company_id::text
-  ))
-);
+-- Función para reservar stock
+CREATE OR REPLACE FUNCTION reserve_stock(
+  p_warehouse_id UUID,
+  p_product_id UUID,
+  p_quantity NUMERIC
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+  available NUMERIC;
+BEGIN
+  -- Verificar stock disponible
+  SELECT available_stock INTO available
+  FROM inventories
+  WHERE warehouse_id = p_warehouse_id AND product_id = p_product_id;
+  
+  IF NOT FOUND OR available < p_quantity THEN
+    RETURN FALSE;
+  END IF;
+  
+  -- Reservar stock
+  UPDATE inventories
+  SET reserved_stock = reserved_stock + p_quantity
+  WHERE warehouse_id = p_warehouse_id AND product_id = p_product_id;
+  
+  RETURN TRUE;
+END $$ LANGUAGE plpgsql;
 
--- =========================
--- 14) EDGE FUNCTION (RESEND) — disparo de correo al cerrar visita
--- (crea una function de Postgres para encolar, tu Edge Function leerá esta tabla)
--- =========================
-create table if not exists email_queue (
-  id bigserial primary key,
-  to_email text not null,
-  subject text not null,
-  body text not null,
-  created_at timestamptz default now(),
-  sent_at timestamptz
-);
+-- Función para liberar stock reservado
+CREATE OR REPLACE FUNCTION release_stock(
+  p_warehouse_id UUID,
+  p_product_id UUID,
+  p_quantity NUMERIC
+)
+RETURNS BOOLEAN AS $$
+BEGIN
+  UPDATE inventories
+  SET reserved_stock = GREATEST(0, reserved_stock - p_quantity)
+  WHERE warehouse_id = p_warehouse_id AND product_id = p_product_id;
+  
+  RETURN FOUND;
+END $$ LANGUAGE plpgsql;
 
-create or replace function enqueue_visit_email(p_visit uuid)
-returns void as $$
-declare
-  v_rec record;
-begin
-  select v.id, c.email, c.name, v.started_at, v.finished_at
-  into v_rec
-  from visits v
-  join customers c on c.id = v.customer_id
-  where v.id = p_visit;
+-- Función para consumir stock (venta)
+CREATE OR REPLACE FUNCTION consume_stock(
+  p_warehouse_id UUID,
+  p_product_id UUID,
+  p_quantity NUMERIC
+)
+RETURNS BOOLEAN AS $$
+BEGIN
+  UPDATE inventories
+  SET 
+    current_stock = current_stock - p_quantity,
+    reserved_stock = GREATEST(0, reserved_stock - p_quantity)
+  WHERE warehouse_id = p_warehouse_id 
+    AND product_id = p_product_id
+    AND available_stock >= p_quantity;
+  
+  RETURN FOUND;
+END $$ LANGUAGE plpgsql;
 
-  if v_rec.email is null then return; end if;
+-- Función para encolar email de visita
+CREATE OR REPLACE FUNCTION enqueue_visit_email(p_visit UUID)
+RETURNS VOID AS $$
+DECLARE
+  v_rec RECORD;
+BEGIN
+  SELECT v.id, c.email, c.name, v.started_at, v.finished_at
+  INTO v_rec
+  FROM visits v
+  JOIN customers c ON c.id = v.customer_id
+  WHERE v.id = p_visit;
 
-  insert into email_queue(to_email, subject, body)
-  values (
+  IF v_rec.email IS NULL THEN RETURN; END IF;
+
+  INSERT INTO email_queue(to_email, subject, body)
+  VALUES (
     v_rec.email,
     'Resumen de visita',
     'Visita #'||v_rec.id||' a '||v_rec.name||' iniciada '||v_rec.started_at||' finalizada '||v_rec.finished_at
   );
-end $$ language plpgsql;
+END $$ LANGUAGE plpgsql;
 
-create or replace function send_email_on_visit_finish()
-returns trigger as $$
-begin
-  if new.finished_at is not null and (old.finished_at is null or old.finished_at <> new.finished_at) then
-    perform enqueue_visit_email(new.id);
-  end if;
-  return new;
-end $$ language plpgsql;
+-- Función para enviar email al finalizar visita
+CREATE OR REPLACE FUNCTION send_email_on_visit_finish()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.finished_at IS NOT NULL AND (OLD.finished_at IS NULL OR OLD.finished_at <> NEW.finished_at) THEN
+    PERFORM enqueue_visit_email(NEW.id);
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
 
-create trigger trg_visit_email
-after update on visits
-for each row execute function send_email_on_visit_finish();
-
--- =========================
--- 15) SISTEMA DE INVENTARIOS
--- =========================
-
--- Tabla principal de inventarios por almacén
-create table if not exists inventories (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  warehouse_id uuid references warehouses(id) on delete cascade,
-  product_id uuid references products(id) on delete cascade,
-  current_stock numeric not null default 0,
-  reserved_stock numeric not null default 0,
-  available_stock numeric generated always as (current_stock - reserved_stock) stored,
-  min_stock numeric default 0,
-  max_stock numeric,
-  reorder_point numeric,
-  unit_cost numeric default 0,
-  last_updated timestamptz default now(),
-  created_at timestamptz default now(),
-  unique(warehouse_id, product_id)
-);
-
--- Tipos de movimientos de inventario
-do $$ begin
-  create type inventory_movement_type as enum (
-    'PURCHASE',      -- Compra
-    'SALE',          -- Venta
-    'ADJUSTMENT',    -- Ajuste manual
-    'TRANSFER_IN',   -- Transferencia entrada
-    'TRANSFER_OUT',  -- Transferencia salida
-    'RETURN',        -- Devolución
-    'DAMAGED',       -- Dañado
-    'EXPIRED',       -- Vencido
-    'LOSS',          -- Pérdida
-    'INITIAL'        -- Stock inicial
-  );
-exception when duplicate_object then null; end $$;
-
--- Movimientos de inventario
-create table if not exists inventory_movements (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  warehouse_id uuid references warehouses(id) on delete cascade,
-  product_id uuid references products(id) on delete cascade,
-  movement_type inventory_movement_type not null,
-  quantity numeric not null,
-  unit_cost numeric default 0,
-  total_cost numeric generated always as (quantity * unit_cost) stored,
-  reference_id uuid, -- ID de pedido, transferencia, etc.
-  reference_type text, -- 'order', 'transfer', 'adjustment', etc.
-  notes text,
-  created_by uuid references profiles(id) on delete set null,
-  created_at timestamptz default now()
-);
-
--- Transferencias entre almacenes
-create table if not exists inventory_transfers (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  from_warehouse_id uuid references warehouses(id) on delete cascade,
-  to_warehouse_id uuid references warehouses(id) on delete cascade,
-  status text default 'PENDING' check (status in ('PENDING', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED')),
-  requested_by uuid references profiles(id) on delete set null,
-  approved_by uuid references profiles(id) on delete set null,
-  shipped_by uuid references profiles(id) on delete set null,
-  received_by uuid references profiles(id) on delete set null,
-  requested_at timestamptz default now(),
-  approved_at timestamptz,
-  shipped_at timestamptz,
-  received_at timestamptz,
-  notes text,
-  created_at timestamptz default now()
-);
-
--- Items de transferencia
-create table if not exists transfer_items (
-  id uuid primary key default gen_random_uuid(),
-  transfer_id uuid references inventory_transfers(id) on delete cascade,
-  product_id uuid references products(id) on delete cascade,
-  quantity numeric not null,
-  transferred_quantity numeric default 0,
-  unit_cost numeric default 0,
-  notes text
-);
-
--- Alertas de inventario
-create table if not exists inventory_alerts (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  warehouse_id uuid references warehouses(id) on delete cascade,
-  product_id uuid references products(id) on delete cascade,
-  alert_type text not null check (alert_type in ('LOW_STOCK', 'OUT_OF_STOCK', 'OVERSTOCK', 'EXPIRING_SOON')),
-  threshold numeric,
-  current_value numeric,
-  is_active boolean default true,
-  created_at timestamptz default now(),
-  resolved_at timestamptz,
-  resolved_by uuid references profiles(id) on delete set null
-);
-
--- Configuración de alertas por producto
-create table if not exists product_alert_config (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid references companies(id) on delete cascade,
-  product_id uuid references products(id) on delete cascade,
-  low_stock_threshold numeric default 10,
-  out_of_stock_threshold numeric default 0,
-  overstock_threshold numeric,
-  expiring_days_threshold integer default 30,
-  enable_low_stock_alert boolean default true,
-  enable_out_of_stock_alert boolean default true,
-  enable_overstock_alert boolean default false,
-  enable_expiring_alert boolean default true,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now(),
-  unique(product_id)
-);
+-- Trigger para enviar email al finalizar visita
+CREATE TRIGGER trg_visit_email
+  AFTER UPDATE ON visits
+  FOR EACH ROW EXECUTE FUNCTION send_email_on_visit_finish();
 
 -- =========================
--- 16) ÍNDICES PARA INVENTARIOS
--- =========================
-
-create index if not exists inventories_warehouse_idx on inventories(warehouse_id);
-create index if not exists inventories_product_idx on inventories(product_id);
-create index if not exists inventories_company_idx on inventories(company_id);
-create index if not exists inventories_stock_idx on inventories(available_stock);
-
-create index if not exists inventory_movements_warehouse_idx on inventory_movements(warehouse_id);
-create index if not exists inventory_movements_product_idx on inventory_movements(product_id);
-create index if not exists inventory_movements_type_idx on inventory_movements(movement_type);
-create index if not exists inventory_movements_date_idx on inventory_movements(created_at);
-create index if not exists inventory_movements_reference_idx on inventory_movements(reference_type, reference_id);
-
-create index if not exists inventory_transfers_from_idx on inventory_transfers(from_warehouse_id);
-create index if not exists inventory_transfers_to_idx on inventory_transfers(to_warehouse_id);
-create index if not exists inventory_transfers_status_idx on inventory_transfers(status);
-create index if not exists inventory_transfers_date_idx on inventory_transfers(created_at);
-
-create index if not exists inventory_alerts_active_idx on inventory_alerts(is_active);
-create index if not exists inventory_alerts_type_idx on inventory_alerts(alert_type);
-create index if not exists inventory_alerts_date_idx on inventory_alerts(created_at);
-
--- =========================
--- 17) RLS PARA INVENTARIOS
--- =========================
-
-alter table inventories enable row level security;
-alter table inventory_movements enable row level security;
-alter table inventory_transfers enable row level security;
-alter table transfer_items enable row level security;
-alter table inventory_alerts enable row level security;
-alter table product_alert_config enable row level security;
-
--- Políticas para inventarios
-create policy "company_rw_inventories" on inventories
-for all using (company_id = (select company_id from me))
-with check (company_id = (select company_id from me));
-
-create policy "company_rw_inventory_movements" on inventory_movements
-for all using (company_id = (select company_id from me))
-with check (company_id = (select company_id from me));
-
-create policy "company_rw_inventory_transfers" on inventory_transfers
-for all using (company_id = (select company_id from me))
-with check (company_id = (select company_id from me));
-
-create policy "company_rw_transfer_items" on transfer_items
-for all using (transfer_id in (select id from inventory_transfers where company_id = (select company_id from me)))
-with check (transfer_id in (select id from inventory_transfers where company_id = (select company_id from me)));
-
-create policy "company_rw_inventory_alerts" on inventory_alerts
-for all using (company_id = (select company_id from me))
-with check (company_id = (select company_id from me));
-
-create policy "company_rw_product_alert_config" on product_alert_config
-for all using (company_id = (select company_id from me))
-with check (company_id = (select company_id from me));
-
--- =========================
--- 18) FUNCIONES PARA INVENTARIOS
--- =========================
-
--- Función para actualizar stock automáticamente
-create or replace function update_inventory_stock()
-returns trigger as $$
-begin
-  -- Actualizar inventario
-  insert into inventories (company_id, warehouse_id, product_id, current_stock, unit_cost)
-  values (new.company_id, new.warehouse_id, new.product_id, new.quantity, new.unit_cost)
-  on conflict (warehouse_id, product_id)
-  do update set
-    current_stock = inventories.current_stock + new.quantity,
-    unit_cost = case 
-      when new.quantity > 0 then 
-        (inventories.current_stock * inventories.unit_cost + new.quantity * new.unit_cost) / 
-        (inventories.current_stock + new.quantity)
-      else inventories.unit_cost
-    end,
-    last_updated = now();
-  
-  return new;
-end $$ language plpgsql;
-
--- Trigger para actualizar inventario al crear movimientos
-create trigger trg_update_inventory_stock
-after insert on inventory_movements
-for each row execute function update_inventory_stock();
-
--- Función para verificar alertas de inventario
-create or replace function check_inventory_alerts()
-returns trigger as $$
-declare
-  alert_config record;
-  current_stock numeric;
-begin
-  -- Obtener configuración de alertas
-  select * into alert_config 
-  from product_alert_config 
-  where product_id = new.product_id;
-  
-  if not found then
-    -- Usar configuración por defecto
-    alert_config.low_stock_threshold := 10;
-    alert_config.out_of_stock_threshold := 0;
-    alert_config.enable_low_stock_alert := true;
-    alert_config.enable_out_of_stock_alert := true;
-  end if;
-  
-  current_stock := new.available_stock;
-  
-  -- Verificar stock bajo
-  if alert_config.enable_low_stock_alert and current_stock <= alert_config.low_stock_threshold and current_stock > 0 then
-    insert into inventory_alerts (company_id, warehouse_id, product_id, alert_type, threshold, current_value)
-    values (new.company_id, new.warehouse_id, new.product_id, 'LOW_STOCK', alert_config.low_stock_threshold, current_stock)
-    on conflict do nothing;
-  end if;
-  
-  -- Verificar sin stock
-  if alert_config.enable_out_of_stock_alert and current_stock <= alert_config.out_of_stock_threshold then
-    insert into inventory_alerts (company_id, warehouse_id, product_id, alert_type, threshold, current_value)
-    values (new.company_id, new.warehouse_id, new.product_id, 'OUT_OF_STOCK', alert_config.out_of_stock_threshold, current_stock)
-    on conflict do nothing;
-  end if;
-  
-  return new;
-end $$ language plpgsql;
-
--- Trigger para verificar alertas al actualizar inventario
-create trigger trg_check_inventory_alerts
-after update on inventories
-for each row execute function check_inventory_alerts();
-
--- Función para reservar stock
-create or replace function reserve_stock(
-  p_warehouse_id uuid,
-  p_product_id uuid,
-  p_quantity numeric
-)
-returns boolean as $$
-declare
-  available numeric;
-begin
-  -- Verificar stock disponible
-  select available_stock into available
-  from inventories
-  where warehouse_id = p_warehouse_id and product_id = p_product_id;
-  
-  if not found or available < p_quantity then
-    return false;
-  end if;
-  
-  -- Reservar stock
-  update inventories
-  set reserved_stock = reserved_stock + p_quantity
-  where warehouse_id = p_warehouse_id and product_id = p_product_id;
-  
-  return true;
-end $$ language plpgsql;
-
--- Función para liberar stock reservado
-create or replace function release_stock(
-  p_warehouse_id uuid,
-  p_product_id uuid,
-  p_quantity numeric
-)
-returns boolean as $$
-begin
-  update inventories
-  set reserved_stock = greatest(0, reserved_stock - p_quantity)
-  where warehouse_id = p_warehouse_id and product_id = p_product_id;
-  
-  return found;
-end $$ language plpgsql;
-
--- Función para consumir stock (venta)
-create or replace function consume_stock(
-  p_warehouse_id uuid,
-  p_product_id uuid,
-  p_quantity numeric
-)
-returns boolean as $$
-begin
-  update inventories
-  set 
-    current_stock = current_stock - p_quantity,
-    reserved_stock = greatest(0, reserved_stock - p_quantity)
-  where warehouse_id = p_warehouse_id 
-    and product_id = p_product_id
-    and available_stock >= p_quantity;
-  
-  return found;
-end $$ language plpgsql;
-
--- =========================
--- 19) VISTAS PARA REPORTES DE INVENTARIO
+-- 19) VISTAS PARA REPORTES
 -- =========================
 
 -- Vista de inventario con información completa
-create or replace view inventory_summary as
-select 
+CREATE OR REPLACE VIEW inventory_summary AS
+SELECT 
   i.id,
   i.company_id,
   i.warehouse_id,
   i.product_id,
-  w.name as warehouse_name,
-  p.name as product_name,
+  w.name AS warehouse_name,
+  p.name AS product_name,
   p.sku,
   p.unit,
   i.current_stock,
@@ -864,27 +947,27 @@ select
   i.max_stock,
   i.reorder_point,
   i.unit_cost,
-  (i.current_stock * i.unit_cost) as total_value,
+  (i.current_stock * i.unit_cost) AS total_value,
   i.last_updated,
-  case 
-    when i.available_stock <= i.min_stock then 'LOW_STOCK'
-    when i.available_stock = 0 then 'OUT_OF_STOCK'
-    when i.available_stock >= coalesce(i.max_stock, 999999) then 'OVERSTOCK'
-    else 'NORMAL'
-  end as stock_status
-from inventories i
-join warehouses w on w.id = i.warehouse_id
-join products p on p.id = i.product_id;
+  CASE 
+    WHEN i.available_stock <= i.min_stock THEN 'LOW_STOCK'
+    WHEN i.available_stock = 0 THEN 'OUT_OF_STOCK'
+    WHEN i.available_stock >= COALESCE(i.max_stock, 999999) THEN 'OVERSTOCK'
+    ELSE 'NORMAL'
+  END AS stock_status
+FROM inventories i
+JOIN warehouses w ON w.id = i.warehouse_id
+JOIN products p ON p.id = i.product_id;
 
 -- Vista de movimientos con información detallada
-create or replace view inventory_movements_detail as
-select 
+CREATE OR REPLACE VIEW inventory_movements_detail AS
+SELECT 
   im.id,
   im.company_id,
   im.warehouse_id,
   im.product_id,
-  w.name as warehouse_name,
-  p.name as product_name,
+  w.name AS warehouse_name,
+  p.name AS product_name,
   p.sku,
   im.movement_type,
   im.quantity,
@@ -894,116 +977,183 @@ select
   im.reference_id,
   im.notes,
   im.created_by,
-  prof.full_name as created_by_name,
+  prof.full_name AS created_by_name,
   im.created_at
-from inventory_movements im
-join warehouses w on w.id = im.warehouse_id
-join products p on p.id = im.product_id
-left join profiles prof on prof.id = im.created_by;
+FROM inventory_movements im
+JOIN warehouses w ON w.id = im.warehouse_id
+JOIN products p ON p.id = im.product_id
+LEFT JOIN profiles prof ON prof.id = im.created_by;
 
 -- Vista de alertas activas
-create or replace view active_inventory_alerts as
-select 
+CREATE OR REPLACE VIEW active_inventory_alerts AS
+SELECT 
   ia.id,
   ia.company_id,
   ia.warehouse_id,
   ia.product_id,
-  w.name as warehouse_name,
-  p.name as product_name,
+  w.name AS warehouse_name,
+  p.name AS product_name,
   p.sku,
   ia.alert_type,
   ia.threshold,
   ia.current_value,
   ia.created_at,
-  case 
-    when ia.alert_type = 'LOW_STOCK' then 'Stock bajo'
-    when ia.alert_type = 'OUT_OF_STOCK' then 'Sin stock'
-    when ia.alert_type = 'OVERSTOCK' then 'Sobre stock'
-    when ia.alert_type = 'EXPIRING_SOON' then 'Próximo a vencer'
-    else ia.alert_type
-  end as alert_description
-from inventory_alerts ia
-join warehouses w on w.id = ia.warehouse_id
-join products p on p.id = ia.product_id
-where ia.is_active = true and ia.resolved_at is null;
+  CASE 
+    WHEN ia.alert_type = 'LOW_STOCK' THEN 'Stock bajo'
+    WHEN ia.alert_type = 'OUT_OF_STOCK' THEN 'Sin stock'
+    WHEN ia.alert_type = 'OVERSTOCK' THEN 'Sobre stock'
+    WHEN ia.alert_type = 'EXPIRING_SOON' THEN 'Próximo a vencer'
+    ELSE ia.alert_type
+  END AS alert_description
+FROM inventory_alerts ia
+JOIN warehouses w ON w.id = ia.warehouse_id
+JOIN products p ON p.id = ia.product_id
+WHERE ia.is_active = TRUE AND ia.resolved_at IS NULL;
 
 -- =========================
--- 20) FUNCIONES DE REPORTE PARA INVENTARIO
+-- 20) FUNCIONES DE REPORTE
 -- =========================
 
 -- Función para obtener reporte de valor de inventario
-create or replace function get_inventory_value_report(
-  p_company_id uuid,
-  p_warehouse_id uuid default null,
-  p_date_from date default null,
-  p_date_to date default null
+CREATE OR REPLACE FUNCTION get_inventory_value_report(
+  p_company_id UUID,
+  p_warehouse_id UUID DEFAULT NULL,
+  p_date_from DATE DEFAULT NULL,
+  p_date_to DATE DEFAULT NULL
 )
-returns table (
-  warehouse_name text,
-  product_name text,
-  sku text,
-  current_stock numeric,
-  unit_cost numeric,
-  total_value numeric,
-  last_movement_date timestamptz
-) as $$
-begin
-  return query
-  select 
+RETURNS TABLE (
+  warehouse_name TEXT,
+  product_name TEXT,
+  sku TEXT,
+  current_stock NUMERIC,
+  unit_cost NUMERIC,
+  total_value NUMERIC,
+  last_movement_date TIMESTAMPTZ
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
     w.name,
     p.name,
     p.sku,
     i.current_stock,
     i.unit_cost,
-    (i.current_stock * i.unit_cost) as total_value,
+    (i.current_stock * i.unit_cost) AS total_value,
     i.last_updated
-  from inventories i
-  join warehouses w on w.id = i.warehouse_id
-  join products p on p.id = i.product_id
-  where i.company_id = p_company_id
-    and (p_warehouse_id is null or i.warehouse_id = p_warehouse_id)
-    and (p_date_from is null or i.last_updated >= p_date_from)
-    and (p_date_to is null or i.last_updated <= p_date_to)
-  order by w.name, p.name;
-end $$ language plpgsql;
+  FROM inventories i
+  JOIN warehouses w ON w.id = i.warehouse_id
+  JOIN products p ON p.id = i.product_id
+  WHERE i.company_id = p_company_id
+    AND (p_warehouse_id IS NULL OR i.warehouse_id = p_warehouse_id)
+    AND (p_date_from IS NULL OR i.last_updated >= p_date_from)
+    AND (p_date_to IS NULL OR i.last_updated <= p_date_to)
+  ORDER BY w.name, p.name;
+END $$ LANGUAGE plpgsql;
 
 -- Función para obtener movimientos de inventario
-create or replace function get_inventory_movements_report(
-  p_company_id uuid,
-  p_warehouse_id uuid default null,
-  p_product_id uuid default null,
-  p_date_from date default null,
-  p_date_to date default null
+CREATE OR REPLACE FUNCTION get_inventory_movements_report(
+  p_company_id UUID,
+  p_warehouse_id UUID DEFAULT NULL,
+  p_product_id UUID DEFAULT NULL,
+  p_date_from DATE DEFAULT NULL,
+  p_date_to DATE DEFAULT NULL
 )
-returns table (
-  movement_date timestamptz,
-  warehouse_name text,
-  product_name text,
-  movement_type text,
-  quantity numeric,
-  unit_cost numeric,
-  total_cost numeric,
-  created_by_name text
-) as $$
-begin
-  return query
-  select 
+RETURNS TABLE (
+  movement_date TIMESTAMPTZ,
+  warehouse_name TEXT,
+  product_name TEXT,
+  movement_type TEXT,
+  quantity NUMERIC,
+  unit_cost NUMERIC,
+  total_cost NUMERIC,
+  created_by_name TEXT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
     im.created_at,
     w.name,
     p.name,
-    im.movement_type::text,
+    im.movement_type::TEXT,
     im.quantity,
     im.unit_cost,
     im.total_cost,
     prof.full_name
-  from inventory_movements im
-  join warehouses w on w.id = im.warehouse_id
-  join products p on p.id = im.product_id
-  left join profiles prof on prof.id = im.created_by
-  where im.company_id = p_company_id
-    and (p_warehouse_id is null or im.warehouse_id = p_warehouse_id)
-    and (p_product_id is null or im.product_id = p_product_id)
-    and (p_date_from is null or im.created_at >= p_date_from)
-    and (p_date_to is null or im.created_at <= p_date_to)
-  order by im.created_at desc;
-end $$ language plpgsql;
+  FROM inventory_movements im
+  JOIN warehouses w ON w.id = im.warehouse_id
+  JOIN products p ON p.id = im.product_id
+  LEFT JOIN profiles prof ON prof.id = im.created_by
+  WHERE im.company_id = p_company_id
+    AND (p_warehouse_id IS NULL OR im.warehouse_id = p_warehouse_id)
+    AND (p_product_id IS NULL OR im.product_id = p_product_id)
+    AND (p_date_from IS NULL OR im.created_at >= p_date_from)
+    AND (p_date_to IS NULL OR im.created_at <= p_date_to)
+  ORDER BY im.created_at DESC;
+END $$ LANGUAGE plpgsql;
+
+-- =========================
+-- 21) STORAGE BUCKETS
+-- =========================
+
+-- Bucket para fotos de evidencia
+INSERT INTO storage.buckets (id, name, public) VALUES
+  ('evidence-photos', 'evidence-photos', FALSE)
+  ON CONFLICT (id) DO NOTHING;
+
+-- Bucket para firmas
+INSERT INTO storage.buckets (id, name, public) VALUES
+  ('signatures', 'signatures', FALSE)
+  ON CONFLICT (id) DO NOTHING;
+
+-- Bucket para documentos
+INSERT INTO storage.buckets (id, name, public) VALUES
+  ('documents', 'documents', FALSE)
+  ON CONFLICT (id) DO NOTHING;
+
+-- =========================
+-- 22) POLÍTICAS DE STORAGE
+-- =========================
+
+-- Política de storage por compañía (ruta: company_id/user_id/...)
+CREATE POLICY "evidence_read_own_company" ON storage.objects
+FOR SELECT USING (
+  bucket_id IN ('evidence-photos', 'signatures', 'documents')
+  AND (EXISTS (
+    SELECT 1 FROM profiles p
+    WHERE p.id = auth.uid()
+      AND split_part(storage.objects.name, '/', 1) = p.company_id::TEXT
+  ))
+);
+
+CREATE POLICY "evidence_write_own_company" ON storage.objects
+FOR INSERT WITH CHECK (
+  bucket_id IN ('evidence-photos', 'signatures', 'documents')
+  AND (EXISTS (
+    SELECT 1 FROM profiles p
+    WHERE p.id = auth.uid()
+      AND split_part(name, '/', 1) = p.company_id::TEXT
+  ))
+);
+
+-- =========================
+-- 23) MENSAJE DE ÉXITO
+-- =========================
+
+DO $$
+BEGIN
+  RAISE NOTICE '========================================';
+  RAISE NOTICE 'ESQUEMA ARSENAL SELL ADMIN CREADO EXITOSAMENTE';
+  RAISE NOTICE '========================================';
+  RAISE NOTICE 'Tablas creadas: 25+';
+  RAISE NOTICE 'Funciones creadas: 15+';
+  RAISE NOTICE 'Triggers creados: 10+';
+  RAISE NOTICE 'Vistas creadas: 3';
+  RAISE NOTICE 'Índices creados: 20+';
+  RAISE NOTICE 'Políticas RLS: 15+';
+  RAISE NOTICE '========================================';
+  RAISE NOTICE 'Próximos pasos:';
+  RAISE NOTICE '1. Crear datos de prueba con: npm run seed:minimal';
+  RAISE NOTICE '2. Verificar conexión con: npm run test:connection';
+  RAISE NOTICE '3. Iniciar aplicación con: npm run dev';
+  RAISE NOTICE '========================================';
+END $$;

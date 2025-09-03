@@ -1,9 +1,12 @@
+import 'dart:async';
+
+import 'package:arsenal_sell_app/config/logger.dart';
+import 'package:arsenal_sell_app/data/local/drift/db.dart';
+import 'package:arsenal_sell_app/data/models/customers/customer.dart';
+import 'package:arsenal_sell_app/data/remote/supabase_client.dart';
+import 'package:arsenal_sell_app/services/sync/customer_mapper.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/customers/customer.dart';
-import '../local/drift/db.dart';
-import '../remote/supabase_client.dart';
-import '../../config/logger.dart';
 
 class CustomersRepository {
   final DatabaseHelper _db = DatabaseHelper.instance;

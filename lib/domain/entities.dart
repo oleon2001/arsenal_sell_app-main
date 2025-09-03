@@ -21,6 +21,13 @@ export '../data/models/forms/form_response.dart';
 export '../data/models/notifications/email_queue.dart';
 export '../data/models/audit/audit_log.dart';
 export '../data/models/reports/kpi.dart';
+export '../data/models/auth/company.dart';
+export '../data/models/sales/delivery.dart';
+export '../data/models/sales/payment.dart';
+export '../data/models/sales/return.dart';
+export '../data/models/visits/visit_photo.dart';
+export '../data/models/visits/visit_signature.dart';
+export '../data/models/geo/tracking_location.dart';
 
 // Core domain interfaces
 abstract class Repository<T> {

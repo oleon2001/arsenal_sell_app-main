@@ -5,6 +5,8 @@ import 'package:geolocator/geolocator.dart';
 import '../../../core/theme/palette.dart';
 import '../../../core/utils/uuid_generator.dart';
 import '../../../data/models/customers/customer.dart';
+import '../../../data/models/companies/company.dart';
+import '../../../data/repositories/companies_repository.dart';
 import '../../../services/location/location_service.dart';
 import '../bloc/customers_cubit.dart';
 
@@ -32,11 +34,17 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
   double? _longitude;
   bool _isLoadingLocation = false;
 
+  // Company selection
+  Company? _selectedCompany;
+  List<Company> _companies = [];
+  bool _isLoadingCompanies = false;
+
   bool get _isEditing => widget.customerId != null;
 
   @override
   void initState() {
     super.initState();
+    _loadCompanies();
     if (_isEditing) {
       _loadCustomer();
     }
@@ -50,6 +58,35 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
     _phoneController.dispose();
     _addressController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCompanies() async {
+    setState(() {
+      _isLoadingCompanies = true;
+    });
+
+    try {
+      final companiesRepository = CompaniesRepository();
+      final companies = await companiesRepository.getCompanies();
+      setState(() {
+        _companies = companies;
+        // Seleccionar la primera compañía por defecto
+        if (companies.isNotEmpty) {
+          _selectedCompany = companies.first;
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cargar compañías: $e'),
+          backgroundColor: AppPalette.error,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoadingCompanies = false;
+      });
+    }
   }
 
   void _loadCustomer() {
@@ -123,6 +160,108 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
                             border: OutlineInputBorder(),
                           ),
                         ),
+                      ],
+                    ),
+
+                    // Company selection section
+                    _buildSection(
+                      'Compañía',
+                      [
+                        if (_isLoadingCompanies)
+                          const Center(
+                            child: CircularProgressIndicator(),
+                          )
+                        else if (_companies.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppPalette.warning.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppPalette.warning),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.warning, color: AppPalette.warning),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'No hay compañías disponibles. Contacta al administrador.',
+                                    style: TextStyle(color: AppPalette.warning),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else ...[
+                          DropdownButtonFormField<Company>(
+                            value: _selectedCompany,
+                            decoration: const InputDecoration(
+                              labelText: 'Compañía *',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.business),
+                            ),
+                            items: _companies.map((Company company) {
+                              return DropdownMenuItem<Company>(
+                                value: company,
+                                child: Text(company.name),
+                              );
+                            }).toList(),
+                            onChanged: (Company? newValue) {
+                              setState(() {
+                                _selectedCompany = newValue;
+                              });
+                            },
+                            validator: (value) {
+                              if (value == null) {
+                                return 'Debes seleccionar una compañía';
+                              }
+                              return null;
+                            },
+                          ),
+                          if (_selectedCompany != null) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppPalette.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppPalette.primary),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.business,
+                                    color: AppPalette.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Compañía seleccionada:',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppPalette.textSecondary,
+                                          ),
+                                        ),
+                                        Text(
+                                          _selectedCompany!.name,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppPalette.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
                       ],
                     ),
 
@@ -347,7 +486,8 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
     if (_formKey.currentState?.validate() ?? false) {
       final customer = Customer(
         id: widget.customerId ?? UuidGenerator.generateFromNow(),
-        companyId: 'current_company_id', // TODO: Get from auth
+        companyId:
+            _selectedCompany?.id ?? 'current_company_id', // TODO: Get from auth
         code: _codeController.text.isNotEmpty ? _codeController.text : null,
         name: _nameController.text,
         email: _emailController.text.isNotEmpty ? _emailController.text : null,

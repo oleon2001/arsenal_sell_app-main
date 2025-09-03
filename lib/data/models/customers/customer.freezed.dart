@@ -21,17 +21,26 @@ Customer _$CustomerFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$Customer {
   String get id => throw _privateConstructorUsedError;
+  @JsonKey(name: 'company_id')
   String get companyId => throw _privateConstructorUsedError;
   String? get code => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
   String? get email => throw _privateConstructorUsedError;
   String? get phone => throw _privateConstructorUsedError;
-  String? get address => throw _privateConstructorUsedError;
+  String? get address =>
+      throw _privateConstructorUsedError; // Mantener compatibilidad con latitude/longitude
   double? get latitude => throw _privateConstructorUsedError;
-  double? get longitude => throw _privateConstructorUsedError;
+  double? get longitude =>
+      throw _privateConstructorUsedError; // Agregar soporte para PostGIS location
+  @JsonKey(name: 'location')
+  String? get location => throw _privateConstructorUsedError;
+  @JsonKey(name: 'geo_accuracy_m')
   double? get geoAccuracyM => throw _privateConstructorUsedError;
+  @JsonKey(name: 'created_by')
   String? get createdBy => throw _privateConstructorUsedError;
+  @JsonKey(name: 'created_at')
   DateTime? get createdAt => throw _privateConstructorUsedError;
+  @JsonKey(name: 'updated_at')
   DateTime? get updatedAt => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -47,7 +56,7 @@ abstract class $CustomerCopyWith<$Res> {
   @useResult
   $Res call(
       {String id,
-      String companyId,
+      @JsonKey(name: 'company_id') String companyId,
       String? code,
       String name,
       String? email,
@@ -55,10 +64,11 @@ abstract class $CustomerCopyWith<$Res> {
       String? address,
       double? latitude,
       double? longitude,
-      double? geoAccuracyM,
-      String? createdBy,
-      DateTime? createdAt,
-      DateTime? updatedAt});
+      @JsonKey(name: 'location') String? location,
+      @JsonKey(name: 'geo_accuracy_m') double? geoAccuracyM,
+      @JsonKey(name: 'created_by') String? createdBy,
+      @JsonKey(name: 'created_at') DateTime? createdAt,
+      @JsonKey(name: 'updated_at') DateTime? updatedAt});
 }
 
 /// @nodoc
@@ -83,6 +93,7 @@ class _$CustomerCopyWithImpl<$Res, $Val extends Customer>
     Object? address = freezed,
     Object? latitude = freezed,
     Object? longitude = freezed,
+    Object? location = freezed,
     Object? geoAccuracyM = freezed,
     Object? createdBy = freezed,
     Object? createdAt = freezed,
@@ -125,6 +136,10 @@ class _$CustomerCopyWithImpl<$Res, $Val extends Customer>
           ? _value.longitude
           : longitude // ignore: cast_nullable_to_non_nullable
               as double?,
+      location: freezed == location
+          ? _value.location
+          : location // ignore: cast_nullable_to_non_nullable
+              as String?,
       geoAccuracyM: freezed == geoAccuracyM
           ? _value.geoAccuracyM
           : geoAccuracyM // ignore: cast_nullable_to_non_nullable
@@ -155,7 +170,7 @@ abstract class _$$CustomerImplCopyWith<$Res>
   @useResult
   $Res call(
       {String id,
-      String companyId,
+      @JsonKey(name: 'company_id') String companyId,
       String? code,
       String name,
       String? email,
@@ -163,10 +178,11 @@ abstract class _$$CustomerImplCopyWith<$Res>
       String? address,
       double? latitude,
       double? longitude,
-      double? geoAccuracyM,
-      String? createdBy,
-      DateTime? createdAt,
-      DateTime? updatedAt});
+      @JsonKey(name: 'location') String? location,
+      @JsonKey(name: 'geo_accuracy_m') double? geoAccuracyM,
+      @JsonKey(name: 'created_by') String? createdBy,
+      @JsonKey(name: 'created_at') DateTime? createdAt,
+      @JsonKey(name: 'updated_at') DateTime? updatedAt});
 }
 
 /// @nodoc
@@ -189,6 +205,7 @@ class __$$CustomerImplCopyWithImpl<$Res>
     Object? address = freezed,
     Object? latitude = freezed,
     Object? longitude = freezed,
+    Object? location = freezed,
     Object? geoAccuracyM = freezed,
     Object? createdBy = freezed,
     Object? createdAt = freezed,
@@ -231,6 +248,10 @@ class __$$CustomerImplCopyWithImpl<$Res>
           ? _value.longitude
           : longitude // ignore: cast_nullable_to_non_nullable
               as double?,
+      location: freezed == location
+          ? _value.location
+          : location // ignore: cast_nullable_to_non_nullable
+              as String?,
       geoAccuracyM: freezed == geoAccuracyM
           ? _value.geoAccuracyM
           : geoAccuracyM // ignore: cast_nullable_to_non_nullable
@@ -256,7 +277,7 @@ class __$$CustomerImplCopyWithImpl<$Res>
 class _$CustomerImpl implements _Customer {
   const _$CustomerImpl(
       {required this.id,
-      required this.companyId,
+      @JsonKey(name: 'company_id') required this.companyId,
       this.code,
       required this.name,
       this.email,
@@ -264,10 +285,11 @@ class _$CustomerImpl implements _Customer {
       this.address,
       this.latitude,
       this.longitude,
-      this.geoAccuracyM,
-      this.createdBy,
-      this.createdAt,
-      this.updatedAt});
+      @JsonKey(name: 'location') this.location,
+      @JsonKey(name: 'geo_accuracy_m') this.geoAccuracyM,
+      @JsonKey(name: 'created_by') this.createdBy,
+      @JsonKey(name: 'created_at') this.createdAt,
+      @JsonKey(name: 'updated_at') this.updatedAt});
 
   factory _$CustomerImpl.fromJson(Map<String, dynamic> json) =>
       _$$CustomerImplFromJson(json);
@@ -275,6 +297,7 @@ class _$CustomerImpl implements _Customer {
   @override
   final String id;
   @override
+  @JsonKey(name: 'company_id')
   final String companyId;
   @override
   final String? code;
@@ -286,22 +309,31 @@ class _$CustomerImpl implements _Customer {
   final String? phone;
   @override
   final String? address;
+// Mantener compatibilidad con latitude/longitude
   @override
   final double? latitude;
   @override
   final double? longitude;
+// Agregar soporte para PostGIS location
   @override
+  @JsonKey(name: 'location')
+  final String? location;
+  @override
+  @JsonKey(name: 'geo_accuracy_m')
   final double? geoAccuracyM;
   @override
+  @JsonKey(name: 'created_by')
   final String? createdBy;
   @override
+  @JsonKey(name: 'created_at')
   final DateTime? createdAt;
   @override
+  @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
 
   @override
   String toString() {
-    return 'Customer(id: $id, companyId: $companyId, code: $code, name: $name, email: $email, phone: $phone, address: $address, latitude: $latitude, longitude: $longitude, geoAccuracyM: $geoAccuracyM, createdBy: $createdBy, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Customer(id: $id, companyId: $companyId, code: $code, name: $name, email: $email, phone: $phone, address: $address, latitude: $latitude, longitude: $longitude, location: $location, geoAccuracyM: $geoAccuracyM, createdBy: $createdBy, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -321,6 +353,8 @@ class _$CustomerImpl implements _Customer {
                 other.latitude == latitude) &&
             (identical(other.longitude, longitude) ||
                 other.longitude == longitude) &&
+            (identical(other.location, location) ||
+                other.location == location) &&
             (identical(other.geoAccuracyM, geoAccuracyM) ||
                 other.geoAccuracyM == geoAccuracyM) &&
             (identical(other.createdBy, createdBy) ||
@@ -344,6 +378,7 @@ class _$CustomerImpl implements _Customer {
       address,
       latitude,
       longitude,
+      location,
       geoAccuracyM,
       createdBy,
       createdAt,
@@ -366,7 +401,7 @@ class _$CustomerImpl implements _Customer {
 abstract class _Customer implements Customer {
   const factory _Customer(
       {required final String id,
-      required final String companyId,
+      @JsonKey(name: 'company_id') required final String companyId,
       final String? code,
       required final String name,
       final String? email,
@@ -374,10 +409,11 @@ abstract class _Customer implements Customer {
       final String? address,
       final double? latitude,
       final double? longitude,
-      final double? geoAccuracyM,
-      final String? createdBy,
-      final DateTime? createdAt,
-      final DateTime? updatedAt}) = _$CustomerImpl;
+      @JsonKey(name: 'location') final String? location,
+      @JsonKey(name: 'geo_accuracy_m') final double? geoAccuracyM,
+      @JsonKey(name: 'created_by') final String? createdBy,
+      @JsonKey(name: 'created_at') final DateTime? createdAt,
+      @JsonKey(name: 'updated_at') final DateTime? updatedAt}) = _$CustomerImpl;
 
   factory _Customer.fromJson(Map<String, dynamic> json) =
       _$CustomerImpl.fromJson;
@@ -385,6 +421,7 @@ abstract class _Customer implements Customer {
   @override
   String get id;
   @override
+  @JsonKey(name: 'company_id')
   String get companyId;
   @override
   String? get code;
@@ -396,17 +433,24 @@ abstract class _Customer implements Customer {
   String? get phone;
   @override
   String? get address;
-  @override
+  @override // Mantener compatibilidad con latitude/longitude
   double? get latitude;
   @override
   double? get longitude;
+  @override // Agregar soporte para PostGIS location
+  @JsonKey(name: 'location')
+  String? get location;
   @override
+  @JsonKey(name: 'geo_accuracy_m')
   double? get geoAccuracyM;
   @override
+  @JsonKey(name: 'created_by')
   String? get createdBy;
   @override
+  @JsonKey(name: 'created_at')
   DateTime? get createdAt;
   @override
+  @JsonKey(name: 'updated_at')
   DateTime? get updatedAt;
   @override
   @JsonKey(ignore: true)

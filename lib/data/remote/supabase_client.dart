@@ -7,15 +7,19 @@ import '../models/customers/customer.dart';
 import '../models/geo/location_sample.dart';
 import '../models/sales/order.dart';
 import '../models/visits/visit.dart';
+import 'package:arsenal_sell_app/services/sync/customer_mapper.dart';
+import '../models/companies/company.dart';
 
 class SupabaseService {
-  final SupabaseClient _client = Supabase.instance.client;
+  SupabaseService() : _client = Supabase.instance.client;
+
+  final SupabaseClient _client;
 
   // Customers
   Future<List<Customer>> getCustomers() async {
     try {
       final response = await _client.from('customers').select();
-      return (response as List).map((e) => Customer.fromJson(e)).toList();
+      return (response as List).map((e) => CustomerMapper.fromSupabaseFormat(e)).toList();
     } catch (e) {
       logger.e('Get customers error: $e');
       rethrow;
@@ -53,14 +57,30 @@ class SupabaseService {
 
   Future<Customer> upsertCustomer(Customer customer) async {
     try {
+      // Usar el mapper para convertir a formato Supabase
+      final supabaseData = CustomerMapper.toSupabaseFormat(customer);
+      
       final response = await _client
           .from('customers')
-          .upsert(customer.toJson())
+          .upsert(supabaseData)
           .select()
           .single();
-      return Customer.fromJson(response);
+      
+      // Convertir la respuesta de vuelta al formato Flutter
+      return CustomerMapper.fromSupabaseFormat(response);
     } catch (e) {
       logger.e('Upsert customer error: $e');
+      rethrow;
+    }
+  }
+
+  // Companies
+  Future<List<Company>> getCompanies() async {
+    try {
+      final response = await _client.from('companies').select();
+      return (response as List).map((e) => Company.fromJson(e)).toList();
+    } catch (e) {
+      logger.e('Get companies error: $e');
       rethrow;
     }
   }

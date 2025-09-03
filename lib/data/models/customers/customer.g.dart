@@ -9,7 +9,7 @@ part of 'customer.dart';
 _$CustomerImpl _$$CustomerImplFromJson(Map<String, dynamic> json) =>
     _$CustomerImpl(
       id: json['id'] as String,
-      companyId: json['companyId'] as String,
+      companyId: json['company_id'] as String,
       code: json['code'] as String?,
       name: json['name'] as String,
       email: json['email'] as String?,
@@ -17,20 +17,21 @@ _$CustomerImpl _$$CustomerImplFromJson(Map<String, dynamic> json) =>
       address: json['address'] as String?,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
-      geoAccuracyM: (json['geoAccuracyM'] as num?)?.toDouble(),
-      createdBy: json['createdBy'] as String?,
-      createdAt: json['createdAt'] == null
+      location: json['location'] as String?,
+      geoAccuracyM: (json['geo_accuracy_m'] as num?)?.toDouble(),
+      createdBy: json['created_by'] as String?,
+      createdAt: json['created_at'] == null
           ? null
-          : DateTime.parse(json['createdAt'] as String),
-      updatedAt: json['updatedAt'] == null
+          : DateTime.parse(json['created_at'] as String),
+      updatedAt: json['updated_at'] == null
           ? null
-          : DateTime.parse(json['updatedAt'] as String),
+          : DateTime.parse(json['updated_at'] as String),
     );
 
 Map<String, dynamic> _$$CustomerImplToJson(_$CustomerImpl instance) =>
     <String, dynamic>{
       'id': instance.id,
-      'companyId': instance.companyId,
+      'company_id': instance.companyId,
       'code': instance.code,
       'name': instance.name,
       'email': instance.email,
@@ -38,10 +39,11 @@ Map<String, dynamic> _$$CustomerImplToJson(_$CustomerImpl instance) =>
       'address': instance.address,
       'latitude': instance.latitude,
       'longitude': instance.longitude,
-      'geoAccuracyM': instance.geoAccuracyM,
-      'createdBy': instance.createdBy,
-      'createdAt': instance.createdAt?.toIso8601String(),
-      'updatedAt': instance.updatedAt?.toIso8601String(),
+      'location': instance.location,
+      'geo_accuracy_m': instance.geoAccuracyM,
+      'created_by': instance.createdBy,
+      'created_at': instance.createdAt?.toIso8601String(),
+      'updated_at': instance.updatedAt?.toIso8601String(),
     };
 
 _$AddressImpl _$$AddressImplFromJson(Map<String, dynamic> json) =>
