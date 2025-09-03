@@ -18,13 +18,13 @@ enum UserRole {
 class UserProfile with _$UserProfile {
   const factory UserProfile({
     required String id,
-    String? companyId,
-    String? fullName,
+    @JsonKey(name: 'company_id') String? companyId,
+    @JsonKey(name: 'full_name') String? fullName,
     String? phone,
     String? email,
     @Default(UserRole.vendedor) UserRole role,
-    @Default(true) bool isActive,
-    DateTime? createdAt,
+    @JsonKey(name: 'is_active') @Default(true) bool isActive,
+    @JsonKey(name: 'created_at') DateTime? createdAt,
   }) = _UserProfile;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) =>

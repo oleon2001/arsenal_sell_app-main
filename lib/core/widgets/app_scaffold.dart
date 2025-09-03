@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/palette.dart';
+import '../theme/design_system.dart';
 import '../../features/auth/bloc/auth_cubit.dart';
 import '../../data/models/auth/user_profile.dart';
 
@@ -10,20 +11,33 @@ class AppScaffold extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => BlocBuilder<AuthCubit, AuthState>(
-        builder: (context, state) {
-          // Check if state is authenticated
-          if (state is Authenticated) {
-            final user = state.user;
-            return Scaffold(
-              appBar: _buildAppBar(context, user.role),
-              body: child,
-              bottomNavigationBar: _buildBottomNavigation(context, user),
-              drawer: _buildDrawer(context, user),
-            );
+  Widget build(BuildContext context) => BlocListener<AuthCubit, AuthState>(
+        listener: (context, state) {
+          // Si el usuario se desautentica, navegar a la página de inicio de sesión
+          if (state.runtimeType.toString() == '_Unauthenticated') {
+            // Usar un delay pequeño para asegurar que la navegación funcione correctamente
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (context.mounted) {
+                context.go('/sign-in');
+              }
+            });
           }
-          return child;
         },
+        child: BlocBuilder<AuthCubit, AuthState>(
+          builder: (context, state) {
+            // Check if state is authenticated
+            if (state is Authenticated) {
+              final user = state.user;
+              return Scaffold(
+                appBar: _buildAppBar(context, user.role),
+                body: child,
+                bottomNavigationBar: _buildBottomNavigation(context, user),
+                drawer: _buildDrawer(context, user),
+              );
+            }
+            return child;
+          },
+        ),
       );
 
   PreferredSizeWidget _buildAppBar(BuildContext context, UserRole role) {
@@ -38,12 +52,14 @@ class AppScaffold extends StatelessWidget {
           onPressed: () {
             // TODO: Implementar notificaciones
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text('Notificaciones próximamente'),
-                duration: Duration(seconds: 2),
+                backgroundColor: AppPalette.primary,
+                behavior: SnackBarBehavior.floating,
               ),
             );
           },
+          tooltip: 'Notificaciones',
         ),
         // Botón de perfil rápido
         PopupMenuButton<String>(
@@ -62,34 +78,36 @@ class AppScaffold extends StatelessWidget {
             }
           },
           itemBuilder: (context) => [
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'profile',
               child: Row(
                 children: [
-                  Icon(Icons.person),
-                  SizedBox(width: 8),
-                  Text('Mi Perfil'),
+                  Icon(Icons.person, color: AppPalette.primary),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text('Mi Perfil', style: AppTypography.labelLarge),
                 ],
               ),
             ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'settings',
               child: Row(
                 children: [
-                  Icon(Icons.settings),
-                  SizedBox(width: 8),
-                  Text('Configuración'),
+                  Icon(Icons.settings, color: AppPalette.primary),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text('Configuración', style: AppTypography.labelLarge),
                 ],
               ),
             ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'logout',
               child: Row(
                 children: [
                   Icon(Icons.logout, color: AppPalette.error),
-                  SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.sm),
                   Text('Cerrar Sesión',
-                      style: TextStyle(color: AppPalette.error)),
+                      style: AppTypography.labelLarge.copyWith(
+                        color: AppPalette.error,
+                      )),
                 ],
               ),
             ),
@@ -104,19 +122,40 @@ class AppScaffold extends StatelessWidget {
 
     switch (currentLocation) {
       case '/dashboard':
-        return const Text('Mapa en Vivo');
+        return Text('Mapa en Vivo',
+            style: AppTypography.headline4.copyWith(
+              color: Colors.white,
+            ));
       case '/customers':
-        return const Text('Clientes');
+        return Text('Clientes',
+            style: AppTypography.headline4.copyWith(
+              color: Colors.white,
+            ));
       case '/orders':
-        return const Text('Pedidos');
+        return Text('Pedidos',
+            style: AppTypography.headline4.copyWith(
+              color: Colors.white,
+            ));
       case '/payments':
-        return const Text('Cobros');
+        return Text('Cobros',
+            style: AppTypography.headline4.copyWith(
+              color: Colors.white,
+            ));
       case '/deliveries':
-        return const Text('Entregas');
+        return Text('Entregas',
+            style: AppTypography.headline4.copyWith(
+              color: Colors.white,
+            ));
       case '/supervisor':
-        return const Text('Panel de Control');
+        return Text('Panel de Control',
+            style: AppTypography.headline4.copyWith(
+              color: Colors.white,
+            ));
       default:
-        return const Text('Arsenal Sell App');
+        return Text('Arsenal Sell App',
+            style: AppTypography.headline4.copyWith(
+              color: Colors.white,
+            ));
     }
   }
 
@@ -151,141 +190,185 @@ class AppScaffold extends StatelessWidget {
 
   Widget _buildVendedorNavigation(
           BuildContext context, String currentLocation) =>
-      BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppPalette.primary,
-        unselectedItemColor: AppPalette.textSecondary,
-        currentIndex: _getNavigationIndex(currentLocation, [
-          '/dashboard',
-          '/customers',
-          '/orders',
-          '/payments',
-        ]),
-        onTap: (index) => _navigateToIndex(context, index, [
-          '/dashboard',
-          '/customers',
-          '/orders',
-          '/payments',
-        ]),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Mapa',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Clientes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Pedidos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.payment),
-            label: 'Cobros',
-          ),
-        ],
+      Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: AppPalette.primary,
+          unselectedItemColor: AppPalette.textSecondary,
+          currentIndex: _getNavigationIndex(currentLocation, [
+            '/dashboard',
+            '/customers',
+            '/orders',
+            '/payments',
+          ]),
+          onTap: (index) => _navigateToIndex(context, index, [
+            '/dashboard',
+            '/customers',
+            '/orders',
+            '/payments',
+          ]),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.map),
+              label: 'Mapa',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people),
+              label: 'Clientes',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_cart),
+              label: 'Pedidos',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.payment),
+              label: 'Cobros',
+            ),
+          ],
+        ),
       );
 
   Widget _buildRepartidorNavigation(
           BuildContext context, String currentLocation) =>
-      BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppPalette.repartidor,
-        unselectedItemColor: AppPalette.textSecondary,
-        currentIndex: _getNavigationIndex(currentLocation, [
-          '/dashboard',
-          '/deliveries',
-          '/customers',
-        ]),
-        onTap: (index) => _navigateToIndex(context, index, [
-          '/dashboard',
-          '/deliveries',
-          '/customers',
-        ]),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Ruta',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_shipping),
-            label: 'Entregas',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Clientes',
-          ),
-        ],
+      Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: AppPalette.repartidor,
+          unselectedItemColor: AppPalette.textSecondary,
+          currentIndex: _getNavigationIndex(currentLocation, [
+            '/dashboard',
+            '/deliveries',
+            '/customers',
+          ]),
+          onTap: (index) => _navigateToIndex(context, index, [
+            '/dashboard',
+            '/deliveries',
+            '/customers',
+          ]),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.map),
+              label: 'Ruta',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.local_shipping),
+              label: 'Entregas',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people),
+              label: 'Clientes',
+            ),
+          ],
+        ),
       );
 
   Widget _buildSupervisorNavigation(
           BuildContext context, String currentLocation) =>
-      BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppPalette.supervisor,
-        unselectedItemColor: AppPalette.textSecondary,
-        currentIndex: _getNavigationIndex(currentLocation, [
-          '/supervisor',
-          '/dashboard',
-          '/customers',
-          '/orders',
-        ]),
-        onTap: (index) => _navigateToIndex(context, index, [
-          '/supervisor',
-          '/dashboard',
-          '/customers',
-          '/orders',
-        ]),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: 'Panel',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Campo',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Clientes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.analytics),
-            label: 'Reportes',
-          ),
-        ],
+      Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: AppPalette.supervisor,
+          unselectedItemColor: AppPalette.textSecondary,
+          currentIndex: _getNavigationIndex(currentLocation, [
+            '/supervisor',
+            '/dashboard',
+            '/customers',
+            '/orders',
+          ]),
+          onTap: (index) => _navigateToIndex(context, index, [
+            '/supervisor',
+            '/dashboard',
+            '/customers',
+            '/orders',
+          ]),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard),
+              label: 'Panel',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.map),
+              label: 'Campo',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people),
+              label: 'Clientes',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.analytics),
+              label: 'Reportes',
+            ),
+          ],
+        ),
       );
 
   Widget _buildAdminNavigation(BuildContext context, String currentLocation) =>
-      BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppPalette.admin,
-        unselectedItemColor: AppPalette.textSecondary,
-        currentIndex: _getNavigationIndex(currentLocation, [
-          '/dashboard',
-          '/customers',
-          '/supervisor',
-        ]),
-        onTap: (index) => _navigateToIndex(context, index, [
-          '/dashboard',
-          '/customers',
-          '/supervisor',
-        ]),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Mapa',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Clientes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.admin_panel_settings),
-            label: 'Admin',
-          ),
-        ],
+      Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: AppPalette.admin,
+          unselectedItemColor: AppPalette.textSecondary,
+          currentIndex: _getNavigationIndex(currentLocation, [
+            '/dashboard',
+            '/customers',
+            '/supervisor',
+          ]),
+          onTap: (index) => _navigateToIndex(context, index, [
+            '/dashboard',
+            '/customers',
+            '/supervisor',
+          ]),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.map),
+              label: 'Mapa',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people),
+              label: 'Clientes',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.admin_panel_settings),
+              label: 'Admin',
+            ),
+          ],
+        ),
       );
 
   Widget _buildDrawer(BuildContext context, UserProfile user) => Drawer(
@@ -293,9 +376,17 @@ class AppScaffold extends StatelessWidget {
           children: [
             // Header del drawer
             Container(
-              padding: const EdgeInsets.fromLTRB(16, 60, 16, 16),
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, 60, AppSpacing.md, AppSpacing.md),
               decoration: BoxDecoration(
-                color: _getRoleColor(user.role),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _getRoleColor(user.role),
+                    _getRoleColor(user.role).withOpacity(0.8),
+                  ],
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.1),
@@ -309,49 +400,67 @@ class AppScaffold extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Colors.white,
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
                         child: Text(
                           user.fullName?.isNotEmpty == true
                               ? user.fullName![0].toUpperCase()
                               : '?',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                          style: AppTypography.headline3.copyWith(
                             color: _getRoleColor(user.role),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               user.fullName ?? 'Usuario',
-                              style: const TextStyle(
+                              style: AppTypography.headline4.copyWith(
                                 color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            Text(
-                              _getRoleLabel(user.role),
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
+                            const SizedBox(height: AppSpacing.xs),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.sm,
+                                vertical: AppSpacing.xs,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius:
+                                    BorderRadius.circular(AppShapes.sm),
+                              ),
+                              child: Text(
+                                _getRoleLabel(user.role),
+                                style: AppTypography.labelMedium.copyWith(
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
-                            if (user.email != null)
+                            if (user.email != null) ...[
+                              const SizedBox(height: AppSpacing.xs),
                               Text(
                                 user.email!,
-                                style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 12,
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: Colors.white70,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
+                            ],
                           ],
                         ),
                       ),
@@ -373,7 +482,7 @@ class AppScaffold extends StatelessWidget {
                     _getDrawerItems(context, user.role),
                   ),
 
-                  const Divider(height: 1),
+                  AppComponents.sectionDivider(),
 
                   // Sección de herramientas
                   _buildDrawerSection(
@@ -381,18 +490,23 @@ class AppScaffold extends StatelessWidget {
                     'Herramientas',
                     [
                       ListTile(
-                        leading: const Icon(Icons.sync),
-                        title: const Text('Sincronizar'),
-                        subtitle: const Text('Actualizar datos'),
+                        leading: Icon(Icons.sync, color: AppPalette.primary),
+                        title: Text('Sincronizar',
+                            style: AppTypography.bodyMedium),
+                        subtitle: Text('Actualizar datos',
+                            style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
                           _showSyncDialog(context);
                         },
                       ),
                       ListTile(
-                        leading: const Icon(Icons.location_on),
-                        title: const Text('Mi Ubicación'),
-                        subtitle: const Text('Ver ubicación actual'),
+                        leading:
+                            Icon(Icons.location_on, color: AppPalette.primary),
+                        title: Text('Mi Ubicación',
+                            style: AppTypography.bodyMedium),
+                        subtitle: Text('Ver ubicación actual',
+                            style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
                           context.go('/dashboard');
@@ -401,7 +515,7 @@ class AppScaffold extends StatelessWidget {
                     ],
                   ),
 
-                  const Divider(height: 1),
+                  AppComponents.sectionDivider(),
 
                   // Sección de configuración
                   _buildDrawerSection(
@@ -409,27 +523,35 @@ class AppScaffold extends StatelessWidget {
                     'Configuración',
                     [
                       ListTile(
-                        leading: const Icon(Icons.settings),
-                        title: const Text('Configuración'),
-                        subtitle: const Text('Ajustes de la app'),
+                        leading:
+                            Icon(Icons.settings, color: AppPalette.primary),
+                        title: Text('Configuración',
+                            style: AppTypography.bodyMedium),
+                        subtitle: Text('Ajustes de la app',
+                            style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
                           _showSettingsDialog(context);
                         },
                       ),
                       ListTile(
-                        leading: const Icon(Icons.help_outline),
-                        title: const Text('Ayuda'),
-                        subtitle: const Text('Manual de usuario'),
+                        leading:
+                            Icon(Icons.help_outline, color: AppPalette.primary),
+                        title: Text('Ayuda', style: AppTypography.bodyMedium),
+                        subtitle: Text('Manual de usuario',
+                            style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
                           _showHelpDialog(context);
                         },
                       ),
                       ListTile(
-                        leading: const Icon(Icons.info_outline),
-                        title: const Text('Acerca de'),
-                        subtitle: const Text('Información de la app'),
+                        leading:
+                            Icon(Icons.info_outline, color: AppPalette.primary),
+                        title:
+                            Text('Acerca de', style: AppTypography.bodyMedium),
+                        subtitle: Text('Información de la app',
+                            style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
                           _showAboutDialog(context);
@@ -438,22 +560,19 @@ class AppScaffold extends StatelessWidget {
                     ],
                   ),
 
-                  const Divider(height: 1),
+                  AppComponents.sectionDivider(),
 
                   // Botón de cerrar sesión
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     child: SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.icon(
+                      child: AppComponents.actionButton(
+                        icon: Icons.logout,
+                        label: 'Cerrar Sesión',
                         onPressed: () => _showLogoutDialog(context),
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Cerrar Sesión'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppPalette.error,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
+                        backgroundColor: AppPalette.error,
+                        foregroundColor: Colors.white,
                       ),
                     ),
                   ),
@@ -473,12 +592,11 @@ class AppScaffold extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
           child: Text(
             title,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+            style: AppTypography.labelMedium.copyWith(
               color: AppPalette.textSecondary,
               letterSpacing: 0.5,
             ),
@@ -492,18 +610,18 @@ class AppScaffold extends StatelessWidget {
   List<Widget> _getDrawerItems(BuildContext context, UserRole role) {
     final commonItems = [
       ListTile(
-        leading: const Icon(Icons.map),
-        title: const Text('Mapa en Vivo'),
-        subtitle: const Text('Ver ubicaciones'),
+        leading: Icon(Icons.map, color: AppPalette.primary),
+        title: Text('Mapa en Vivo', style: AppTypography.bodyMedium),
+        subtitle: Text('Ver ubicaciones', style: AppTypography.bodySmall),
         onTap: () {
           Navigator.pop(context);
           context.go('/dashboard');
         },
       ),
       ListTile(
-        leading: const Icon(Icons.people),
-        title: const Text('Clientes'),
-        subtitle: const Text('Gestionar clientes'),
+        leading: Icon(Icons.people, color: AppPalette.primary),
+        title: Text('Clientes', style: AppTypography.bodyMedium),
+        subtitle: Text('Gestionar clientes', style: AppTypography.bodySmall),
         onTap: () {
           Navigator.pop(context);
           context.go('/customers');
@@ -517,18 +635,18 @@ class AppScaffold extends StatelessWidget {
       case UserRole.vendedor:
         roleSpecificItems.addAll([
           ListTile(
-            leading: const Icon(Icons.shopping_cart),
-            title: const Text('Pedidos'),
-            subtitle: const Text('Crear y gestionar'),
+            leading: Icon(Icons.shopping_cart, color: AppPalette.primary),
+            title: Text('Pedidos', style: AppTypography.bodyMedium),
+            subtitle: Text('Crear y gestionar', style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
               context.go('/orders');
             },
           ),
           ListTile(
-            leading: const Icon(Icons.payment),
-            title: const Text('Cobros'),
-            subtitle: const Text('Registrar pagos'),
+            leading: Icon(Icons.payment, color: AppPalette.primary),
+            title: Text('Cobros', style: AppTypography.bodyMedium),
+            subtitle: Text('Registrar pagos', style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
               context.go('/payments');
@@ -539,9 +657,10 @@ class AppScaffold extends StatelessWidget {
       case UserRole.repartidor:
         roleSpecificItems.addAll([
           ListTile(
-            leading: const Icon(Icons.local_shipping),
-            title: const Text('Entregas'),
-            subtitle: const Text('Gestionar entregas'),
+            leading: Icon(Icons.local_shipping, color: AppPalette.primary),
+            title: Text('Entregas', style: AppTypography.bodyMedium),
+            subtitle:
+                Text('Gestionar entregas', style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
               context.go('/deliveries');
@@ -553,18 +672,20 @@ class AppScaffold extends StatelessWidget {
       case UserRole.admin:
         roleSpecificItems.addAll([
           ListTile(
-            leading: const Icon(Icons.dashboard),
-            title: const Text('Panel de Control'),
-            subtitle: const Text('Monitoreo en tiempo real'),
+            leading: Icon(Icons.dashboard, color: AppPalette.primary),
+            title: Text('Panel de Control', style: AppTypography.bodyMedium),
+            subtitle: Text('Monitoreo en tiempo real',
+                style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
               context.go('/supervisor');
             },
           ),
           ListTile(
-            leading: const Icon(Icons.analytics),
-            title: const Text('Reportes'),
-            subtitle: const Text('Análisis y estadísticas'),
+            leading: Icon(Icons.analytics, color: AppPalette.primary),
+            title: Text('Reportes', style: AppTypography.bodyMedium),
+            subtitle:
+                Text('Análisis y estadísticas', style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
               _showReportsDialog(context);
@@ -611,33 +732,36 @@ class AppScaffold extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
               Icon(Icons.logout, color: AppPalette.error),
-              SizedBox(width: 8),
-              Text('Cerrar Sesión'),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Cerrar Sesión', style: AppTypography.headline4),
             ],
           ),
-          content: const Text(
+          content: Text(
             '¿Estás seguro de que quieres cerrar sesión? '
             'Se perderán los datos no sincronizados.',
+            style: AppTypography.bodyMedium,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
+              child: Text('Cancelar'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
+              onPressed: () async {
+                Navigator.of(context).pop(); // Cerrar diálogo
                 Navigator.pop(context); // Cerrar drawer
-                context.read<AuthCubit>().signOut();
+
+                // Cerrar sesión - el BlocListener se encargará de la navegación
+                await context.read<AuthCubit>().signOut();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppPalette.error,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Cerrar Sesión'),
+              child: Text('Cerrar Sesión'),
             ),
           ],
         );
@@ -650,33 +774,35 @@ class AppScaffold extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.sync),
-              SizedBox(width: 8),
-              Text('Sincronizar Datos'),
+              Icon(Icons.sync, color: AppPalette.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Sincronizar Datos', style: AppTypography.headline4),
             ],
           ),
-          content: const Text(
+          content: Text(
             '¿Deseas sincronizar todos los datos pendientes con el servidor?',
+            style: AppTypography.bodyMedium,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
+              child: Text('Cancelar'),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 // TODO: Implementar sincronización
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Text('Sincronización iniciada...'),
                     backgroundColor: AppPalette.success,
+                    behavior: SnackBarBehavior.floating,
                   ),
                 );
               },
-              child: const Text('Sincronizar'),
+              child: Text('Sincronizar'),
             ),
           ],
         );
@@ -689,18 +815,21 @@ class AppScaffold extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.settings),
-              SizedBox(width: 8),
-              Text('Configuración'),
+              Icon(Icons.settings, color: AppPalette.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Configuración', style: AppTypography.headline4),
             ],
           ),
-          content: const Text('Configuración próximamente disponible.'),
+          content: Text(
+            'Configuración próximamente disponible.',
+            style: AppTypography.bodyMedium,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              child: Text('OK'),
             ),
           ],
         );
@@ -713,18 +842,21 @@ class AppScaffold extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.help_outline),
-              SizedBox(width: 8),
-              Text('Ayuda'),
+              Icon(Icons.help_outline, color: AppPalette.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Ayuda', style: AppTypography.headline4),
             ],
           ),
-          content: const Text('Manual de usuario próximamente disponible.'),
+          content: Text(
+            'Manual de usuario próximamente disponible.',
+            style: AppTypography.bodyMedium,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              child: Text('OK'),
             ),
           ],
         );
@@ -737,32 +869,35 @@ class AppScaffold extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.info_outline),
-              SizedBox(width: 8),
-              Text('Acerca de'),
+              Icon(Icons.info_outline, color: AppPalette.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Acerca de', style: AppTypography.headline4),
             ],
           ),
-          content: const Column(
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Arsenal Sell App',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: AppTypography.headline4.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              SizedBox(height: 8),
-              Text('Versión: 1.0.0'),
-              Text('Control de Fuerza de Ventas'),
-              SizedBox(height: 8),
-              Text('© 2024 Arsenal Sell App'),
+              const SizedBox(height: AppSpacing.sm),
+              Text('Versión: 1.0.0', style: AppTypography.bodyMedium),
+              Text('Control de Fuerza de Ventas',
+                  style: AppTypography.bodyMedium),
+              const SizedBox(height: AppSpacing.sm),
+              Text('© 2024 Arsenal Sell App', style: AppTypography.bodySmall),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              child: Text('OK'),
             ),
           ],
         );
@@ -775,18 +910,21 @@ class AppScaffold extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.analytics),
-              SizedBox(width: 8),
-              Text('Reportes'),
+              Icon(Icons.analytics, color: AppPalette.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Reportes', style: AppTypography.headline4),
             ],
           ),
-          content: const Text('Reportes y análisis próximamente disponibles.'),
+          content: Text(
+            'Reportes y análisis próximamente disponibles.',
+            style: AppTypography.bodyMedium,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              child: Text('OK'),
             ),
           ],
         );

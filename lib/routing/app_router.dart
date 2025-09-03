@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/widgets/app_scaffold.dart';
 import '../features/auth/bloc/auth_cubit.dart';
 import '../features/auth/pages/sign_in_page.dart';
+import '../features/auth/pages/sign_up_page.dart';
 import '../features/customers/pages/customer_detail_page.dart';
 import '../features/customers/pages/customer_form_page.dart';
 import '../features/customers/pages/customers_list_page.dart';
@@ -49,13 +50,29 @@ class AppRouter {
       final authState = context.read<AuthCubit>().state;
       final isAuthenticated = authState is Authenticated;
       final isGoingToSignIn = state.matchedLocation == '/sign-in';
+      final isGoingToSignUp = state.matchedLocation == '/sign-up';
+      final isGoingToRoot = state.matchedLocation == '/';
 
-      if (!isAuthenticated && !isGoingToSignIn) {
+      // Si no está autenticado y no va a sign-in o sign-up, redirigir a sign-in
+      if (!isAuthenticated && !isGoingToSignIn && !isGoingToSignUp) {
         return '/sign-in';
       }
-      if (isAuthenticated && isGoingToSignIn) {
+
+      // Si está autenticado y va a sign-in o sign-up, redirigir a dashboard
+      if (isAuthenticated && (isGoingToSignIn || isGoingToSignUp)) {
         return '/dashboard';
       }
+
+      // Si está autenticado y va a root, redirigir a dashboard
+      if (isAuthenticated && isGoingToRoot) {
+        return '/dashboard';
+      }
+
+      // Si no está autenticado y va a root, redirigir a sign-in
+      if (!isAuthenticated && isGoingToRoot) {
+        return '/sign-in';
+      }
+
       return null;
     },
     routes: [
@@ -69,6 +86,10 @@ class AppRouter {
       GoRoute(
         path: '/sign-in',
         builder: (context, state) => const SignInPage(),
+      ),
+      GoRoute(
+        path: '/sign-up',
+        builder: (context, state) => const SignUpPage(),
       ),
 
       // Main app shell

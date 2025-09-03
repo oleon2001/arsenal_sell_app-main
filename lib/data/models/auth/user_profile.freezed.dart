@@ -21,12 +21,16 @@ UserProfile _$UserProfileFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$UserProfile {
   String get id => throw _privateConstructorUsedError;
+  @JsonKey(name: 'company_id')
   String? get companyId => throw _privateConstructorUsedError;
+  @JsonKey(name: 'full_name')
   String? get fullName => throw _privateConstructorUsedError;
   String? get phone => throw _privateConstructorUsedError;
   String? get email => throw _privateConstructorUsedError;
   UserRole get role => throw _privateConstructorUsedError;
+  @JsonKey(name: 'is_active')
   bool get isActive => throw _privateConstructorUsedError;
+  @JsonKey(name: 'created_at')
   DateTime? get createdAt => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -43,13 +47,13 @@ abstract class $UserProfileCopyWith<$Res> {
   @useResult
   $Res call(
       {String id,
-      String? companyId,
-      String? fullName,
+      @JsonKey(name: 'company_id') String? companyId,
+      @JsonKey(name: 'full_name') String? fullName,
       String? phone,
       String? email,
       UserRole role,
-      bool isActive,
-      DateTime? createdAt});
+      @JsonKey(name: 'is_active') bool isActive,
+      @JsonKey(name: 'created_at') DateTime? createdAt});
 }
 
 /// @nodoc
@@ -121,13 +125,13 @@ abstract class _$$UserProfileImplCopyWith<$Res>
   @useResult
   $Res call(
       {String id,
-      String? companyId,
-      String? fullName,
+      @JsonKey(name: 'company_id') String? companyId,
+      @JsonKey(name: 'full_name') String? fullName,
       String? phone,
       String? email,
       UserRole role,
-      bool isActive,
-      DateTime? createdAt});
+      @JsonKey(name: 'is_active') bool isActive,
+      @JsonKey(name: 'created_at') DateTime? createdAt});
 }
 
 /// @nodoc
@@ -192,13 +196,13 @@ class __$$UserProfileImplCopyWithImpl<$Res>
 class _$UserProfileImpl implements _UserProfile {
   const _$UserProfileImpl(
       {required this.id,
-      this.companyId,
-      this.fullName,
+      @JsonKey(name: 'company_id') this.companyId,
+      @JsonKey(name: 'full_name') this.fullName,
       this.phone,
       this.email,
       this.role = UserRole.vendedor,
-      this.isActive = true,
-      this.createdAt});
+      @JsonKey(name: 'is_active') this.isActive = true,
+      @JsonKey(name: 'created_at') this.createdAt});
 
   factory _$UserProfileImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserProfileImplFromJson(json);
@@ -206,8 +210,10 @@ class _$UserProfileImpl implements _UserProfile {
   @override
   final String id;
   @override
+  @JsonKey(name: 'company_id')
   final String? companyId;
   @override
+  @JsonKey(name: 'full_name')
   final String? fullName;
   @override
   final String? phone;
@@ -217,9 +223,10 @@ class _$UserProfileImpl implements _UserProfile {
   @JsonKey()
   final UserRole role;
   @override
-  @JsonKey()
+  @JsonKey(name: 'is_active')
   final bool isActive;
   @override
+  @JsonKey(name: 'created_at')
   final DateTime? createdAt;
 
   @override
@@ -267,14 +274,15 @@ class _$UserProfileImpl implements _UserProfile {
 
 abstract class _UserProfile implements UserProfile {
   const factory _UserProfile(
-      {required final String id,
-      final String? companyId,
-      final String? fullName,
-      final String? phone,
-      final String? email,
-      final UserRole role,
-      final bool isActive,
-      final DateTime? createdAt}) = _$UserProfileImpl;
+          {required final String id,
+          @JsonKey(name: 'company_id') final String? companyId,
+          @JsonKey(name: 'full_name') final String? fullName,
+          final String? phone,
+          final String? email,
+          final UserRole role,
+          @JsonKey(name: 'is_active') final bool isActive,
+          @JsonKey(name: 'created_at') final DateTime? createdAt}) =
+      _$UserProfileImpl;
 
   factory _UserProfile.fromJson(Map<String, dynamic> json) =
       _$UserProfileImpl.fromJson;
@@ -282,8 +290,10 @@ abstract class _UserProfile implements UserProfile {
   @override
   String get id;
   @override
+  @JsonKey(name: 'company_id')
   String? get companyId;
   @override
+  @JsonKey(name: 'full_name')
   String? get fullName;
   @override
   String? get phone;
@@ -292,8 +302,10 @@ abstract class _UserProfile implements UserProfile {
   @override
   UserRole get role;
   @override
+  @JsonKey(name: 'is_active')
   bool get isActive;
   @override
+  @JsonKey(name: 'created_at')
   DateTime? get createdAt;
   @override
   @JsonKey(ignore: true)

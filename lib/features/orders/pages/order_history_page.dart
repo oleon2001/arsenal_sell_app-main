@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/palette.dart';
+import '../../../core/theme/design_system.dart';
 import '../../../data/models/sales/order.dart';
 import '../../../data/models/customers/customer.dart';
 import '../bloc/order_cubit.dart';
@@ -46,50 +47,100 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: Text(widget.customerId != null
-              ? 'Pedidos del Cliente'
-              : 'Historial de Pedidos'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.filter_list),
-              onPressed: _showFilterDialog,
-            ),
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: _showSearchDialog,
-            ),
-          ],
-          bottom: TabBar(
-            controller: _tabController,
-            indicatorColor: Colors.white,
-            tabs: const [
-              Tab(text: 'Todos', icon: Icon(Icons.list)),
-              Tab(text: 'Pendientes', icon: Icon(Icons.pending)),
-              Tab(text: 'Completados', icon: Icon(Icons.check_circle)),
-            ],
-          ),
-        ),
+        appBar: _buildAppBar(),
         body: BlocBuilder<OrderCubit, OrderState>(
           builder: (context, state) {
-            return TabBarView(
-              controller: _tabController,
+            return Column(
               children: [
-                _buildOrdersList(null), // All orders
-                _buildOrdersList(OrderStatus.sent), // Pending orders
-                _buildOrdersList(OrderStatus.delivered), // Completed orders
+                _buildTabBar(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildOrdersList(null), // All orders
+                      _buildOrdersList(OrderStatus.sent), // Pending orders
+                      _buildOrdersList(
+                          OrderStatus.delivered), // Completed orders
+                    ],
+                  ),
+                ),
               ],
             );
           },
         ),
         floatingActionButton: widget.customerId != null
-            ? FloatingActionButton(
+            ? FloatingActionButton.extended(
                 onPressed: () =>
                     context.push('/orders/cart/${widget.customerId}'),
-                child: const Icon(Icons.add_shopping_cart),
+                icon: const Icon(Icons.add_shopping_cart),
+                label: const Text('Nuevo Pedido'),
+                backgroundColor: AppPalette.primary,
+                foregroundColor: Colors.white,
               )
             : null,
       );
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Text(
+        widget.customerId != null
+            ? 'Pedidos del Cliente'
+            : 'Historial de Pedidos',
+        style: AppTypography.headline4.copyWith(color: Colors.white),
+      ),
+      elevation: 0,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.filter_list, color: Colors.white),
+          onPressed: _showFilterDialog,
+          tooltip: 'Filtrar',
+        ),
+        IconButton(
+          icon: const Icon(Icons.search, color: Colors.white),
+          onPressed: _showSearchDialog,
+          tooltip: 'Buscar',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicatorColor: AppPalette.primary,
+        indicatorWeight: 3,
+        labelColor: AppPalette.primary,
+        unselectedLabelColor: AppPalette.textSecondary,
+        labelStyle: AppTypography.labelLarge,
+        unselectedLabelStyle: AppTypography.labelMedium,
+        tabs: const [
+          Tab(
+            text: 'Todos',
+            icon: Icon(Icons.list_alt, size: 20),
+          ),
+          Tab(
+            text: 'Pendientes',
+            icon: Icon(Icons.pending_actions, size: 20),
+          ),
+          Tab(
+            text: 'Completados',
+            icon: Icon(Icons.check_circle_outline, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildOrdersList(OrderStatus? filterStatus) {
     // Mock data for demonstration
@@ -103,8 +154,9 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
 
     return RefreshIndicator(
       onRefresh: () async => _loadOrders(),
+      color: AppPalette.primary,
       child: ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.md),
         itemCount: orders.length,
         itemBuilder: (context, index) {
           final order = orders[index];
@@ -122,48 +174,72 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
   Widget _buildEmptyState(OrderStatus? filterStatus) {
     String message;
     IconData icon;
+    Color iconColor;
 
     switch (filterStatus) {
       case OrderStatus.sent:
         message = 'No hay pedidos pendientes';
         icon = Icons.pending_actions;
+        iconColor = AppPalette.warning;
         break;
       case OrderStatus.delivered:
         message = 'No hay pedidos completados';
         icon = Icons.check_circle_outline;
+        iconColor = AppPalette.success;
         break;
       default:
         message = 'No hay pedidos registrados';
         icon = Icons.shopping_cart_outlined;
+        iconColor = AppPalette.textSecondary;
     }
 
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 80,
-            color: AppPalette.textSecondary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: const TextStyle(
-              fontSize: 18,
-              color: AppPalette.textSecondary,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 80,
+                color: iconColor,
+              ),
             ),
-          ),
-          if (widget.customerId != null) ...[
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () =>
-                  context.push('/orders/cart/${widget.customerId}'),
-              icon: const Icon(Icons.add),
-              label: const Text('Crear Primer Pedido'),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              message,
+              style: AppTypography.headline4.copyWith(
+                color: AppPalette.textSecondary,
+              ),
+              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Los pedidos aparecerán aquí cuando sean creados',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppPalette.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (widget.customerId != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              AppComponents.actionButton(
+                icon: Icons.add,
+                label: 'Crear Primer Pedido',
+                onPressed: () =>
+                    context.push('/orders/cart/${widget.customerId}'),
+                backgroundColor: AppPalette.primary,
+                foregroundColor: Colors.white,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -172,6 +248,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => OrderFilterSheet(
         selectedStatus: _selectedStatus,
         startDate: _startDate,
@@ -200,47 +277,52 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Buscar Pedidos'),
-        content: TextField(
-          controller: _searchController,
-          decoration: const InputDecoration(
-            hintText: 'Buscar por cliente, número de pedido...',
-            prefixIcon: Icon(Icons.search),
-          ),
-          autofocus: true,
+        title: Row(
+          children: [
+            Icon(Icons.search, color: AppPalette.primary),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Buscar Pedidos', style: AppTypography.headline4),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Buscar por ID, cliente o producto...',
+                prefixIcon: Icon(Icons.search, color: AppPalette.textSecondary),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppShapes.sm),
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.of(context).pop();
-              _performSearch();
+              // TODO: Implement search
+              Navigator.pop(context);
             },
-            child: const Text('Buscar'),
+            child: Text('Buscar'),
           ),
         ],
       ),
     );
   }
 
-  void _applyFilters() {
-    // TODO: Apply filters to order list
-    _loadOrders();
-  }
-
-  void _performSearch() {
-    // TODO: Perform search
-    _loadOrders();
-  }
-
   void _showOrderDetails(Order order) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => OrderDetailsSheet(order: order),
+    // TODO: Navigate to order details page
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Detalles del pedido ${order.id}'),
+        backgroundColor: AppPalette.primary,
+      ),
     );
   }
 
@@ -248,95 +330,82 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     // TODO: Update order status
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-            'Estado del pedido actualizado a ${_getStatusDisplayName(newStatus)}'),
+        content:
+            Text('Estado actualizado a ${_getStatusDisplayName(newStatus)}'),
         backgroundColor: AppPalette.success,
       ),
     );
   }
 
-  List<Order> _getMockOrders() => [
-        Order(
-          id: '00000000-0000-0000-0000-000000000001',
-          companyId: '705abd4b-c5a7-4a6b-be9c-e2da93df3987',
-          customerId: '00000000-0000-0000-0000-000000000002',
-          status: OrderStatus.sent,
-          subtotal: 2500.0,
-          grandTotal: 2875.0,
-          createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-          items: [
-            OrderItem(
-              id: '00000000-0000-0000-0000-000000000003',
-              orderId: '00000000-0000-0000-0000-000000000001',
-              productId: '00000000-0000-0000-0000-000000000004',
-              qty: 2,
-              price: 1000.0,
-              total: 2000.0,
-            ),
-            OrderItem(
-              id: '00000000-0000-0000-0000-000000000005',
-              orderId: '00000000-0000-0000-0000-000000000001',
-              productId: '00000000-0000-0000-0000-000000000006',
-              qty: 1,
-              price: 500.0,
-              total: 500.0,
-            ),
-          ],
-        ),
-        Order(
-          id: '00000000-0000-0000-0000-000000000007',
-          companyId: '705abd4b-c5a7-4a6b-be9c-e2da93df3987',
-          customerId: '00000000-0000-0000-0000-000000000008',
-          status: OrderStatus.delivered,
-          subtotal: 1800.0,
-          grandTotal: 2070.0,
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-          items: [
-            OrderItem(
-              id: '00000000-0000-0000-0000-000000000009',
-              orderId: '00000000-0000-0000-0000-000000000007',
-              productId: '00000000-0000-0000-0000-000000000010',
-              qty: 3,
-              price: 600.0,
-              total: 1800.0,
-            ),
-          ],
-        ),
-        Order(
-          id: '00000000-0000-0000-0000-000000000011',
-          companyId: '705abd4b-c5a7-4a6b-be9c-e2da93df3987',
-          customerId: '00000000-0000-0000-0000-000000000002',
-          status: OrderStatus.draft,
-          subtotal: 750.0,
-          grandTotal: 862.5,
-          createdAt: DateTime.now().subtract(const Duration(days: 3)),
-          items: [
-            OrderItem(
-              id: '00000000-0000-0000-0000-000000000012',
-              orderId: '00000000-0000-0000-0000-000000000011',
-              productId: '00000000-0000-0000-0000-000000000013',
-              qty: 1,
-              price: 750.0,
-              total: 750.0,
-            ),
-          ],
-        ),
-      ];
+  void _applyFilters() {
+    // TODO: Apply filters and reload orders
+    _loadOrders();
+  }
+
+  List<Order> _getMockOrders() {
+    return [
+      Order(
+        id: 'ORD-001',
+        companyId: 'COMP-001',
+        customerId: 'CLI-001',
+        status: OrderStatus.sent,
+        items: [
+          OrderItem(
+            id: 'ITEM-001',
+            orderId: 'ORD-001',
+            productId: 'PROD-1',
+            qty: 2,
+            price: 1000,
+            total: 2000,
+          )
+        ],
+        grandTotal: 2875.0,
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+      ),
+      Order(
+        id: 'ORD-002',
+        companyId: 'COMP-001',
+        customerId: 'CLI-002',
+        status: OrderStatus.delivered,
+        items: [
+          OrderItem(
+            id: 'ITEM-002',
+            orderId: 'ORD-002',
+            productId: 'PROD-2',
+            qty: 1,
+            price: 2070,
+            total: 2070,
+          )
+        ],
+        grandTotal: 2070.0,
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      ),
+      Order(
+        id: 'ORD-003',
+        companyId: 'COMP-001',
+        customerId: 'CLI-003',
+        status: OrderStatus.draft,
+        items: [],
+        grandTotal: 0.0,
+        createdAt: null,
+      ),
+    ];
+  }
 
   String _getStatusDisplayName(OrderStatus status) {
     switch (status) {
       case OrderStatus.draft:
-        return 'Borrador';
+        return 'BORRADOR';
       case OrderStatus.sent:
-        return 'Enviado';
+        return 'ENVIADO';
       case OrderStatus.approved:
-        return 'Aprobado';
+        return 'APROBADO';
       case OrderStatus.rejected:
-        return 'Rechazado';
+        return 'RECHAZADO';
       case OrderStatus.delivered:
-        return 'Entregado';
+        return 'ENTREGADO';
       case OrderStatus.cancelled:
-        return 'Cancelado';
+        return 'CANCELADO';
     }
   }
 }
@@ -353,141 +422,149 @@ class OrderCard extends StatelessWidget {
   final Function(OrderStatus) onStatusChanged;
 
   @override
-  Widget build(BuildContext context) => Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
+  Widget build(BuildContext context) {
+    final statusColor = _getStatusColor(order.status);
+    final statusText = _getStatusDisplayName(order.status);
+
+    return AppComponents.card(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header con estado y ID
+          Row(
+            children: [
+              AppComponents.statusBadge(
+                text: statusText,
+                color: statusColor,
+              ),
+              const Spacer(),
+              Flexible(
+                child: Text(
+                  'Pedido #${order.id}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppPalette.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Información del cliente
+          AppComponents.infoField(
+            icon: Icons.business,
+            label: 'Cliente',
+            value: order.customerId,
+            textColor: AppPalette.textPrimary,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Detalles del pedido
+          Row(
+            children: [
+              AppComponents.infoField(
+                icon: Icons.inventory,
+                label: 'Productos',
+                value: '${order.items.length} productos',
+                compact: true,
+              ),
+              const Spacer(),
+              if (order.createdAt != null) ...[
+                AppComponents.infoField(
+                  icon: Icons.schedule,
+                  label: 'Fecha',
+                  value: _formatDate(order.createdAt!),
+                  compact: true,
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Total y acciones
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(order.status).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        _getStatusDisplayName(order.status),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _getStatusColor(order.status),
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
                     Text(
-                      'Pedido #${order.id}',
-                      style: const TextStyle(
-                        fontSize: 12,
+                      'Total',
+                      style: AppTypography.labelMedium.copyWith(
                         color: AppPalette.textSecondary,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Customer info
-                Row(
-                  children: [
-                    const Icon(Icons.business,
-                        size: 16, color: AppPalette.textSecondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Cliente ${order.customerId}', // Would show customer name
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Order details
-                Row(
-                  children: [
-                    const Icon(Icons.inventory,
-                        size: 16, color: AppPalette.textSecondary),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${order.items.length} productos',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppPalette.textSecondary,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.schedule,
-                        size: 16, color: AppPalette.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      _formatDate(order.createdAt),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppPalette.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Total and actions
-                Row(
-                  children: [
                     Text(
                       '\$${order.grandTotal.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                      style: AppTypography.price.copyWith(
                         color: AppPalette.primary,
                       ),
                     ),
-                    const Spacer(),
-                    if (order.status == OrderStatus.sent) ...[
-                      IconButton(
-                        onPressed: () => onStatusChanged(OrderStatus.approved),
-                        icon: const Icon(Icons.check_circle,
-                            color: AppPalette.success),
-                        tooltip: 'Aprobar',
-                      ),
-                      IconButton(
-                        onPressed: () => onStatusChanged(OrderStatus.rejected),
-                        icon: const Icon(Icons.cancel, color: AppPalette.error),
-                        tooltip: 'Rechazar',
-                      ),
-                    ],
                   ],
                 ),
+              ),
+              if (order.status == OrderStatus.sent) ...[
+                _buildActionButton(
+                  icon: Icons.check_circle,
+                  color: AppPalette.success,
+                  tooltip: 'Aprobar',
+                  onPressed: () => onStatusChanged(OrderStatus.approved),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                _buildActionButton(
+                  icon: Icons.cancel,
+                  color: AppPalette.error,
+                  tooltip: 'Rechazar',
+                  onPressed: () => onStatusChanged(OrderStatus.rejected),
+                ),
               ],
-            ),
+            ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(AppShapes.sm),
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(icon, color: color, size: 20),
+        tooltip: tooltip,
+        padding: const EdgeInsets.all(AppSpacing.xs),
+        constraints: const BoxConstraints(
+          minWidth: 40,
+          minHeight: 40,
         ),
-      );
+      ),
+    );
+  }
 
   Color _getStatusColor(OrderStatus status) {
     switch (status) {
       case OrderStatus.draft:
-        return AppPalette.textSecondary;
+        return AppPalette.draft;
       case OrderStatus.sent:
-        return AppPalette.warning;
+        return AppPalette.sent;
       case OrderStatus.approved:
-        return AppPalette.info;
+        return AppPalette.approved;
       case OrderStatus.rejected:
-        return AppPalette.error;
+        return AppPalette.rejected;
       case OrderStatus.delivered:
-        return AppPalette.success;
+        return AppPalette.delivered;
       case OrderStatus.cancelled:
-        return AppPalette.textDisabled;
+        return AppPalette.cancelled;
     }
   }
 
@@ -508,8 +585,7 @@ class OrderCard extends StatelessWidget {
     }
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return '';
+  String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
 }

@@ -90,8 +90,16 @@ class AuthCubit extends Cubit<AuthState> {
 
   Future<void> signOut() async {
     try {
+      // Emitir estado de carga mientras se procesa el cierre de sesión
+      emit(const AuthState.loading());
+
+      // Ejecutar el cierre de sesión
       await _authRepository.signOut();
+
+      // Emitir estado no autenticado
       emit(const AuthState.unauthenticated());
+
+      logger.i('User signed out successfully');
     } catch (e) {
       logger.e('Sign out error: $e');
       emit(AuthState.error(e.toString()));

@@ -54,17 +54,12 @@ class AuthRepository {
 
   Future<UserProfile?> _fetchUserProfile(String userId) async {
     try {
-      final response = await _supabase
-          .from('profiles')
-          .select()
-          .eq('id', userId)
-          .maybeSingle();
+      // Usar la vista 'me' que ya incluye el email desde auth.users
+      final response =
+          await _supabase.from('me').select().eq('id', userId).maybeSingle();
 
       if (response != null) {
-        return UserProfile.fromJson({
-          ...response,
-          'email': _supabase.auth.currentUser?.email,
-        });
+        return UserProfile.fromJson(response);
       }
       return null;
     } catch (e) {
@@ -86,22 +81,37 @@ class AuthRepository {
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: null, // No redirección de email
       );
 
       if (response.user != null) {
+        // Si no se proporciona companyId, crear una compañía por defecto
+        String? finalCompanyId = companyId;
+        if (finalCompanyId == null) {
+          finalCompanyId = await _createDefaultCompany(fullName);
+        }
+
         // Create profile in profiles table
         final profile = UserProfile(
           id: response.user!.id,
           email: email,
           fullName: fullName,
           phone: phone,
-          companyId: companyId,
+          companyId: finalCompanyId,
           role: role,
           isActive: true,
           createdAt: DateTime.now(),
         );
 
         await _createUserProfile(profile);
+
+        // Para desarrollo: confirmar email automáticamente
+        if (response.session == null) {
+          // Si no hay sesión, el usuario necesita confirmar email
+          logger.i('User created successfully. Email confirmation required.');
+          // Retornar perfil pero indicar que necesita confirmación
+          return profile;
+        }
 
         // Set local preferences
         await AppPreferences.setUserId(profile.id);
@@ -123,15 +133,31 @@ class AuthRepository {
         'company_id': profile.companyId,
         'full_name': profile.fullName,
         'phone': profile.phone,
-        'email': profile.email,
-        'role': profile.role.name,
+        'role': profile.role.name.toUpperCase(),
         'is_active': profile.isActive,
         'created_at': profile.createdAt?.toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
       logger.e('Create user profile error: $e');
       rethrow;
+    }
+  }
+
+  Future<String?> _createDefaultCompany(String companyName) async {
+    try {
+      final response = await _supabase
+          .from('companies')
+          .insert({
+            'name': '$companyName - Empresa',
+            'created_at': DateTime.now().toIso8601String(),
+          })
+          .select('id')
+          .single();
+
+      return response['id'] as String;
+    } catch (e) {
+      logger.e('Create default company error: $e');
+      return null;
     }
   }
 
@@ -141,6 +167,21 @@ class AuthRepository {
       logger.i('Password reset email sent to: $email');
     } catch (e) {
       logger.e('Reset password error: $e');
+      rethrow;
+    }
+  }
+
+  /// Para desarrollo: confirmar email manualmente
+  Future<void> confirmEmail(String email, String token) async {
+    try {
+      await _supabase.auth.verifyOTP(
+        type: OtpType.signup,
+        email: email,
+        token: token,
+      );
+      logger.i('Email confirmed successfully for: $email');
+    } catch (e) {
+      logger.e('Email confirmation error: $e');
       rethrow;
     }
   }
