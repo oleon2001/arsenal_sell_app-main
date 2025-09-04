@@ -1,9 +1,11 @@
 import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../../../data/repositories/visits_repository.dart';
-import '../../../data/models/visits/visit.dart';
-import '../../../services/sync/sync_queue.dart';
+
 import '../../../config/logger.dart';
+import '../../../data/models/visits/visit.dart';
+import '../../../data/repositories/visits_repository.dart';
+import '../../../services/sync/sync_queue.dart';
 
 class SyncPendingVisitsUseCase {
   SyncPendingVisitsUseCase(this._visitsRepository, this._syncQueue);

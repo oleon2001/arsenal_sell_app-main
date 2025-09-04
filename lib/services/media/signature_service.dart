@@ -26,7 +26,6 @@ class SignatureService {
 
   static SignatureController createController() => SignatureController(
         penStrokeWidth: 2,
-        penColor: Colors.black,
         exportBackgroundColor: Colors.white,
       );
 

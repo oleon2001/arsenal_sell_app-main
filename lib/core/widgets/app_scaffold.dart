@@ -40,82 +40,81 @@ class AppScaffold extends StatelessWidget {
         ),
       );
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, UserRole role) {
-    return AppBar(
-      title: _getAppBarTitle(context),
-      backgroundColor: _getRoleColor(role),
-      elevation: 2,
-      actions: [
-        // Botón de notificaciones
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined),
-          onPressed: () {
-            // TODO: Implementar notificaciones
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Notificaciones próximamente'),
-                backgroundColor: AppPalette.primary,
-                behavior: SnackBarBehavior.floating,
+  PreferredSizeWidget _buildAppBar(BuildContext context, UserRole role) =>
+      AppBar(
+        title: _getAppBarTitle(context),
+        backgroundColor: _getRoleColor(role),
+        elevation: 2,
+        actions: [
+          // Botón de notificaciones
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () {
+              // TODO: Implementar notificaciones
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Notificaciones próximamente'),
+                  backgroundColor: AppPalette.primary,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            tooltip: 'Notificaciones',
+          ),
+          // Botón de perfil rápido
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.account_circle),
+            onSelected: (value) {
+              switch (value) {
+                case 'profile':
+                  // TODO: Navegar a perfil
+                  break;
+                case 'settings':
+                  // TODO: Navegar a configuración
+                  break;
+                case 'logout':
+                  _showLogoutDialog(context);
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person, color: AppPalette.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text('Mi Perfil', style: AppTypography.labelLarge),
+                  ],
+                ),
               ),
-            );
-          },
-          tooltip: 'Notificaciones',
-        ),
-        // Botón de perfil rápido
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.account_circle),
-          onSelected: (value) {
-            switch (value) {
-              case 'profile':
-                // TODO: Navegar a perfil
-                break;
-              case 'settings':
-                // TODO: Navegar a configuración
-                break;
-              case 'logout':
-                _showLogoutDialog(context);
-                break;
-            }
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'profile',
-              child: Row(
-                children: [
-                  Icon(Icons.person, color: AppPalette.primary),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text('Mi Perfil', style: AppTypography.labelLarge),
-                ],
+              PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings, color: AppPalette.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text('Configuración', style: AppTypography.labelLarge),
+                  ],
+                ),
               ),
-            ),
-            PopupMenuItem(
-              value: 'settings',
-              child: Row(
-                children: [
-                  Icon(Icons.settings, color: AppPalette.primary),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text('Configuración', style: AppTypography.labelLarge),
-                ],
+              PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: AppPalette.error),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text('Cerrar Sesión',
+                        style: AppTypography.labelLarge.copyWith(
+                          color: AppPalette.error,
+                        )),
+                  ],
+                ),
               ),
-            ),
-            PopupMenuItem(
-              value: 'logout',
-              child: Row(
-                children: [
-                  Icon(Icons.logout, color: AppPalette.error),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text('Cerrar Sesión',
-                      style: AppTypography.labelLarge.copyWith(
-                        color: AppPalette.error,
-                      )),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+            ],
+          ),
+        ],
+      );
 
   Widget _getAppBarTitle(BuildContext context) {
     final currentLocation = GoRouterState.of(context).matchedLocation;
@@ -490,10 +489,11 @@ class AppScaffold extends StatelessWidget {
                     'Herramientas',
                     [
                       ListTile(
-                        leading: Icon(Icons.sync, color: AppPalette.primary),
-                        title: Text('Sincronizar',
+                        leading:
+                            const Icon(Icons.sync, color: AppPalette.primary),
+                        title: const Text('Sincronizar',
                             style: AppTypography.bodyMedium),
-                        subtitle: Text('Actualizar datos',
+                        subtitle: const Text('Actualizar datos',
                             style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
@@ -501,11 +501,11 @@ class AppScaffold extends StatelessWidget {
                         },
                       ),
                       ListTile(
-                        leading:
-                            Icon(Icons.location_on, color: AppPalette.primary),
-                        title: Text('Mi Ubicación',
+                        leading: const Icon(Icons.location_on,
+                            color: AppPalette.primary),
+                        title: const Text('Mi Ubicación',
                             style: AppTypography.bodyMedium),
-                        subtitle: Text('Ver ubicación actual',
+                        subtitle: const Text('Ver ubicación actual',
                             style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
@@ -523,11 +523,11 @@ class AppScaffold extends StatelessWidget {
                     'Configuración',
                     [
                       ListTile(
-                        leading:
-                            Icon(Icons.settings, color: AppPalette.primary),
-                        title: Text('Configuración',
+                        leading: const Icon(Icons.settings,
+                            color: AppPalette.primary),
+                        title: const Text('Configuración',
                             style: AppTypography.bodyMedium),
-                        subtitle: Text('Ajustes de la app',
+                        subtitle: const Text('Ajustes de la app',
                             style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
@@ -535,10 +535,11 @@ class AppScaffold extends StatelessWidget {
                         },
                       ),
                       ListTile(
-                        leading:
-                            Icon(Icons.help_outline, color: AppPalette.primary),
-                        title: Text('Ayuda', style: AppTypography.bodyMedium),
-                        subtitle: Text('Manual de usuario',
+                        leading: const Icon(Icons.help_outline,
+                            color: AppPalette.primary),
+                        title: const Text('Ayuda',
+                            style: AppTypography.bodyMedium),
+                        subtitle: const Text('Manual de usuario',
                             style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
@@ -546,11 +547,11 @@ class AppScaffold extends StatelessWidget {
                         },
                       ),
                       ListTile(
-                        leading:
-                            Icon(Icons.info_outline, color: AppPalette.primary),
-                        title:
-                            Text('Acerca de', style: AppTypography.bodyMedium),
-                        subtitle: Text('Información de la app',
+                        leading: const Icon(Icons.info_outline,
+                            color: AppPalette.primary),
+                        title: const Text('Acerca de',
+                            style: AppTypography.bodyMedium),
+                        subtitle: const Text('Información de la app',
                             style: AppTypography.bodySmall),
                         onTap: () {
                           Navigator.pop(context);
@@ -587,41 +588,41 @@ class AppScaffold extends StatelessWidget {
     BuildContext context,
     String title,
     List<Widget> children,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
-          child: Text(
-            title,
-            style: AppTypography.labelMedium.copyWith(
-              color: AppPalette.textSecondary,
-              letterSpacing: 0.5,
+  ) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+            child: Text(
+              title,
+              style: AppTypography.labelMedium.copyWith(
+                color: AppPalette.textSecondary,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
-        ),
-        ...children,
-      ],
-    );
-  }
+          ...children,
+        ],
+      );
 
   List<Widget> _getDrawerItems(BuildContext context, UserRole role) {
     final commonItems = [
       ListTile(
-        leading: Icon(Icons.map, color: AppPalette.primary),
-        title: Text('Mapa en Vivo', style: AppTypography.bodyMedium),
-        subtitle: Text('Ver ubicaciones', style: AppTypography.bodySmall),
+        leading: const Icon(Icons.map, color: AppPalette.primary),
+        title: const Text('Mapa en Vivo', style: AppTypography.bodyMedium),
+        subtitle: const Text('Ver ubicaciones', style: AppTypography.bodySmall),
         onTap: () {
           Navigator.pop(context);
           context.go('/dashboard');
         },
       ),
       ListTile(
-        leading: Icon(Icons.people, color: AppPalette.primary),
-        title: Text('Clientes', style: AppTypography.bodyMedium),
-        subtitle: Text('Gestionar clientes', style: AppTypography.bodySmall),
+        leading: const Icon(Icons.people, color: AppPalette.primary),
+        title: const Text('Clientes', style: AppTypography.bodyMedium),
+        subtitle:
+            const Text('Gestionar clientes', style: AppTypography.bodySmall),
         onTap: () {
           Navigator.pop(context);
           context.go('/customers');
@@ -635,18 +636,20 @@ class AppScaffold extends StatelessWidget {
       case UserRole.vendedor:
         roleSpecificItems.addAll([
           ListTile(
-            leading: Icon(Icons.shopping_cart, color: AppPalette.primary),
-            title: Text('Pedidos', style: AppTypography.bodyMedium),
-            subtitle: Text('Crear y gestionar', style: AppTypography.bodySmall),
+            leading: const Icon(Icons.shopping_cart, color: AppPalette.primary),
+            title: const Text('Pedidos', style: AppTypography.bodyMedium),
+            subtitle:
+                const Text('Crear y gestionar', style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
               context.go('/orders');
             },
           ),
           ListTile(
-            leading: Icon(Icons.payment, color: AppPalette.primary),
-            title: Text('Cobros', style: AppTypography.bodyMedium),
-            subtitle: Text('Registrar pagos', style: AppTypography.bodySmall),
+            leading: const Icon(Icons.payment, color: AppPalette.primary),
+            title: const Text('Cobros', style: AppTypography.bodyMedium),
+            subtitle:
+                const Text('Registrar pagos', style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
               context.go('/payments');
@@ -657,10 +660,11 @@ class AppScaffold extends StatelessWidget {
       case UserRole.repartidor:
         roleSpecificItems.addAll([
           ListTile(
-            leading: Icon(Icons.local_shipping, color: AppPalette.primary),
-            title: Text('Entregas', style: AppTypography.bodyMedium),
-            subtitle:
-                Text('Gestionar entregas', style: AppTypography.bodySmall),
+            leading:
+                const Icon(Icons.local_shipping, color: AppPalette.primary),
+            title: const Text('Entregas', style: AppTypography.bodyMedium),
+            subtitle: const Text('Gestionar entregas',
+                style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
               context.go('/deliveries');
@@ -672,9 +676,10 @@ class AppScaffold extends StatelessWidget {
       case UserRole.admin:
         roleSpecificItems.addAll([
           ListTile(
-            leading: Icon(Icons.dashboard, color: AppPalette.primary),
-            title: Text('Panel de Control', style: AppTypography.bodyMedium),
-            subtitle: Text('Monitoreo en tiempo real',
+            leading: const Icon(Icons.dashboard, color: AppPalette.primary),
+            title:
+                const Text('Panel de Control', style: AppTypography.bodyMedium),
+            subtitle: const Text('Monitoreo en tiempo real',
                 style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
@@ -682,10 +687,10 @@ class AppScaffold extends StatelessWidget {
             },
           ),
           ListTile(
-            leading: Icon(Icons.analytics, color: AppPalette.primary),
-            title: Text('Reportes', style: AppTypography.bodyMedium),
-            subtitle:
-                Text('Análisis y estadísticas', style: AppTypography.bodySmall),
+            leading: const Icon(Icons.analytics, color: AppPalette.primary),
+            title: const Text('Reportes', style: AppTypography.bodyMedium),
+            subtitle: const Text('Análisis y estadísticas',
+                style: AppTypography.bodySmall),
             onTap: () {
               Navigator.pop(context);
               _showReportsDialog(context);
@@ -730,205 +735,193 @@ class AppScaffold extends StatelessWidget {
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.logout, color: AppPalette.error),
-              const SizedBox(width: AppSpacing.sm),
-              Text('Cerrar Sesión', style: AppTypography.headline4),
-            ],
-          ),
-          content: Text(
-            '¿Estás seguro de que quieres cerrar sesión? '
-            'Se perderán los datos no sincronizados.',
-            style: AppTypography.bodyMedium,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop(); // Cerrar diálogo
-                Navigator.pop(context); // Cerrar drawer
-
-                // Cerrar sesión - el BlocListener se encargará de la navegación
-                await context.read<AuthCubit>().signOut();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppPalette.error,
-                foregroundColor: Colors.white,
-              ),
-              child: Text('Cerrar Sesión'),
-            ),
+      builder: (BuildContext context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.logout, color: AppPalette.error),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Cerrar Sesión', style: AppTypography.headline4),
           ],
-        );
-      },
+        ),
+        content: Text(
+          '¿Estás seguro de que quieres cerrar sesión? '
+          'Se perderán los datos no sincronizados.',
+          style: AppTypography.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop(); // Cerrar diálogo
+              Navigator.pop(context); // Cerrar drawer
+
+              // Cerrar sesión - el BlocListener se encargará de la navegación
+              await context.read<AuthCubit>().signOut();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppPalette.error,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Cerrar Sesión'),
+          ),
+        ],
+      ),
     );
   }
 
   void _showSyncDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.sync, color: AppPalette.primary),
-              const SizedBox(width: AppSpacing.sm),
-              Text('Sincronizar Datos', style: AppTypography.headline4),
-            ],
-          ),
-          content: Text(
-            '¿Deseas sincronizar todos los datos pendientes con el servidor?',
-            style: AppTypography.bodyMedium,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // TODO: Implementar sincronización
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Sincronización iniciada...'),
-                    backgroundColor: AppPalette.success,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              child: Text('Sincronizar'),
-            ),
+      builder: (BuildContext context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.sync, color: AppPalette.primary),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Sincronizar Datos', style: AppTypography.headline4),
           ],
-        );
-      },
+        ),
+        content: Text(
+          '¿Deseas sincronizar todos los datos pendientes con el servidor?',
+          style: AppTypography.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: Implementar sincronización
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Sincronización iniciada...'),
+                  backgroundColor: AppPalette.success,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: Text('Sincronizar'),
+          ),
+        ],
+      ),
     );
   }
 
   void _showSettingsDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.settings, color: AppPalette.primary),
-              const SizedBox(width: AppSpacing.sm),
-              Text('Configuración', style: AppTypography.headline4),
-            ],
-          ),
-          content: Text(
-            'Configuración próximamente disponible.',
-            style: AppTypography.bodyMedium,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('OK'),
-            ),
+      builder: (BuildContext context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.settings, color: AppPalette.primary),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Configuración', style: AppTypography.headline4),
           ],
-        );
-      },
+        ),
+        content: Text(
+          'Configuración próximamente disponible.',
+          style: AppTypography.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 
   void _showHelpDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.help_outline, color: AppPalette.primary),
-              const SizedBox(width: AppSpacing.sm),
-              Text('Ayuda', style: AppTypography.headline4),
-            ],
-          ),
-          content: Text(
-            'Manual de usuario próximamente disponible.',
-            style: AppTypography.bodyMedium,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('OK'),
-            ),
+      builder: (BuildContext context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.help_outline, color: AppPalette.primary),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Ayuda', style: AppTypography.headline4),
           ],
-        );
-      },
+        ),
+        content: Text(
+          'Manual de usuario próximamente disponible.',
+          style: AppTypography.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 
   void _showAboutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.info_outline, color: AppPalette.primary),
-              const SizedBox(width: AppSpacing.sm),
-              Text('Acerca de', style: AppTypography.headline4),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Arsenal Sell App',
-                style: AppTypography.headline4.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text('Versión: 1.0.0', style: AppTypography.bodyMedium),
-              Text('Control de Fuerza de Ventas',
-                  style: AppTypography.bodyMedium),
-              const SizedBox(height: AppSpacing.sm),
-              Text('© 2024 Arsenal Sell App', style: AppTypography.bodySmall),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('OK'),
-            ),
+      builder: (BuildContext context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.info_outline, color: AppPalette.primary),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Acerca de', style: AppTypography.headline4),
           ],
-        );
-      },
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Arsenal Sell App',
+              style: AppTypography.headline4.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text('Versión: 1.0.0', style: AppTypography.bodyMedium),
+            Text('Control de Fuerza de Ventas',
+                style: AppTypography.bodyMedium),
+            const SizedBox(height: AppSpacing.sm),
+            Text('© 2024 Arsenal Sell App', style: AppTypography.bodySmall),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 
   void _showReportsDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.analytics, color: AppPalette.primary),
-              const SizedBox(width: AppSpacing.sm),
-              Text('Reportes', style: AppTypography.headline4),
-            ],
-          ),
-          content: Text(
-            'Reportes y análisis próximamente disponibles.',
-            style: AppTypography.bodyMedium,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('OK'),
-            ),
+      builder: (BuildContext context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.analytics, color: AppPalette.primary),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Reportes', style: AppTypography.headline4),
           ],
-        );
-      },
+        ),
+        content: Text(
+          'Reportes y análisis próximamente disponibles.',
+          style: AppTypography.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 }

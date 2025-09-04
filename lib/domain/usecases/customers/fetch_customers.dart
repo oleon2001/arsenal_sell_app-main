@@ -1,8 +1,6 @@
-import '../../entities.dart';
-import '../../../data/repositories/customers_repository.dart';
-import '../../../data/models/customers/customer.dart';
 import '../../../config/logger.dart';
-import '../auth/sign_in.dart'; // For NoParams
+import '../../../data/repositories/customers_repository.dart';
+import '../../entities.dart';
 
 class FetchCustomersParams {
   const FetchCustomersParams({

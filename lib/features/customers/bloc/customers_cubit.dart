@@ -1,8 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../data/models/customers/customer.dart';
 import '../../../data/repositories/customers_repository.dart';
 import '../../../config/logger.dart';
+import '../../../services/sync/sync_metrics.dart';
 
 // Commented out until generated files are available
 // part 'customers_state.dart';
@@ -18,16 +18,39 @@ class CustomersCubit extends Cubit<CustomersState> {
     try {
       final customers = await _repository.getCustomers(forceSync: forceSync);
 
-      // Debug: Print customer data
+      // ✅ DEBUG DETALLADO
+      logger.i('=== CUSTOMER SYNC DEBUG ===');
       logger.i('Loaded ${customers.length} customers:');
+
+      int customersWithCoords = 0;
       for (final customer in customers) {
-        logger.i(
-            'Customer: ${customer.name} - Lat: ${customer.latitude}, Lng: ${customer.longitude}');
+        final hasCoords = customer.effectiveLatitude != null &&
+            customer.effectiveLongitude != null;
+        if (hasCoords) customersWithCoords++;
+
+        logger.i('Customer: ${customer.name}');
+        logger.i('  - Has coords: $hasCoords');
+        logger.i('  - Lat: ${customer.effectiveLatitude}');
+        logger.i('  - Lng: ${customer.effectiveLongitude}');
+        logger.i('  - Location field: ${customer.location}');
+
+        if (!hasCoords) {
+          logger.w('  - ⚠️ MISSING COORDINATES');
+        }
       }
+
+      logger.i(
+          'Customers with coordinates: $customersWithCoords/${customers.length}');
+      logger.i('=== END DEBUG ===');
+
+      // ✅ REGISTRAR MÉTRICAS
+      SyncMetrics.recordSyncResult(customers);
 
       emit(CustomersState.loaded(customers));
     } catch (e) {
       logger.e('Load customers error: $e');
+      // ✅ REGISTRAR ERROR EN MÉTRICAS
+      SyncMetrics.recordSyncError(e.toString());
       emit(CustomersState.error(e.toString()));
     }
   }
@@ -56,9 +79,9 @@ class CustomersCubit extends Cubit<CustomersState> {
         emit(const CustomersState.loading());
 
         final updatedCustomer = await _repository.updateCustomer(customer);
-        final updatedCustomers = currentState.customers.map((c) {
-          return c.id == customer.id ? updatedCustomer : c;
-        }).toList();
+        final updatedCustomers = currentState.customers
+            .map((c) => c.id == customer.id ? updatedCustomer : c)
+            .toList();
 
         emit(CustomersState.loaded(updatedCustomers));
 
@@ -106,6 +129,67 @@ class CustomersCubit extends Cubit<CustomersState> {
     }
   }
 
+  /// ✅ MOSTRAR MÉTRICAS DE SINCRONIZACIÓN
+  void showSyncMetrics() {
+    SyncMetrics.printSummary();
+  }
+
+  /// ✅ MÉTODO DE TESTING: Verificar sincronización de clientes
+  Future<void> testCustomerSync() async {
+    logger.i('=== TESTING CUSTOMER SYNC ===');
+
+    try {
+      // 1. Cargar clientes locales
+      final localCustomers = await _repository.getCustomers();
+      logger.i('Local customers: ${localCustomers.length}');
+
+      // 2. Verificar coordenadas locales
+      int localWithCoords = 0;
+      for (final customer in localCustomers) {
+        final hasCoords = customer.effectiveLatitude != null &&
+            customer.effectiveLongitude != null;
+        if (hasCoords) localWithCoords++;
+        logger.i(
+            'Local - ${customer.name}: Lat=${customer.latitude}, Lng=${customer.longitude}, Location=${customer.location}');
+      }
+      logger.i(
+          'Local customers with coordinates: $localWithCoords/${localCustomers.length}');
+
+      // 3. Forzar sincronización
+      logger.i('Starting sync...');
+      await _repository.syncPendingCustomers();
+
+      // 4. Recargar desde servidor
+      logger.i('Reloading from server...');
+      final syncedCustomers = await _repository.getCustomers(forceSync: true);
+      logger.i('Synced customers: ${syncedCustomers.length}');
+
+      // 5. Verificar coordenadas después de sync
+      int syncedWithCoords = 0;
+      for (final customer in syncedCustomers) {
+        final hasCoords = customer.effectiveLatitude != null &&
+            customer.effectiveLongitude != null;
+        if (hasCoords) syncedWithCoords++;
+        logger.i(
+            'Synced - ${customer.name}: Lat=${customer.latitude}, Lng=${customer.longitude}, Location=${customer.location}');
+      }
+
+      logger.i('✅ SYNC TEST COMPLETE:');
+      logger.i(
+          '  - Local: $localWithCoords/${localCustomers.length} customers with coordinates');
+      logger.i(
+          '  - Synced: $syncedWithCoords/${syncedCustomers.length} customers with coordinates');
+
+      if (syncedWithCoords < syncedCustomers.length) {
+        logger.w('⚠️ Some customers are missing coordinates after sync!');
+      }
+
+      logger.i('=== END SYNC TEST ===');
+    } catch (e) {
+      logger.e('❌ SYNC TEST FAILED: $e');
+    }
+  }
+
   /// Temporary function to add test locations to existing customers
   Future<void> addTestLocationsToCustomers() async {
     try {
@@ -134,7 +218,7 @@ class CustomersCubit extends Cubit<CustomersState> {
               address: customer.address,
               latitude: testLatitude,
               longitude: testLongitude,
-              geoAccuracyM: 10.0,
+              geoAccuracyM: 10,
               createdBy: customer.createdBy,
               createdAt: customer.createdAt,
               updatedAt: DateTime.now(),

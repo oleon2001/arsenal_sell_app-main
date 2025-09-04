@@ -1,9 +1,11 @@
 import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../../../data/repositories/tracking_repository.dart';
-import '../../../data/models/geo/location_sample.dart';
-import '../../../services/sync/sync_queue.dart';
+
 import '../../../config/logger.dart';
+import '../../../data/models/geo/location_sample.dart';
+import '../../../data/repositories/tracking_repository.dart';
+import '../../../services/sync/sync_queue.dart';
 
 class UploadTrackUseCase {
   UploadTrackUseCase(this._trackingRepository, this._syncQueue);

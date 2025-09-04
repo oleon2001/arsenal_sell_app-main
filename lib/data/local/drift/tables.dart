@@ -104,3 +104,40 @@ class TrackingLocations extends Table {
   RealColumn get accuracyM => real().nullable()();
   BoolColumn get needsSync => boolean().withDefault(const Constant(false))();
 }
+
+@DataClassName('DeliveryEntity')
+class Deliveries extends Table {
+  TextColumn get id => text()();
+  TextColumn get companyId => text()();
+  TextColumn get orderId => text()();
+  TextColumn get customerId => text().nullable()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get status => text()();
+  DateTimeColumn get deliveredAt => dateTime().nullable()();
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  BoolColumn get needsSync => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('PaymentEntity')
+class Payments extends Table {
+  TextColumn get id => text()();
+  TextColumn get companyId => text()();
+  TextColumn get customerId => text()();
+  TextColumn get orderId => text().nullable()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get type => text()();
+  RealColumn get amount => real()();
+  TextColumn get method => text().nullable()();
+  TextColumn get reference => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get paidAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  BoolColumn get needsSync => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

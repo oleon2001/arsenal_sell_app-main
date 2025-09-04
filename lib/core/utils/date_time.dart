@@ -164,7 +164,7 @@ class DateTimeUtils {
 
   /// Get start of month
   static DateTime startOfMonth(DateTime dateTime) =>
-      DateTime(dateTime.year, dateTime.month, 1);
+      DateTime(dateTime.year, dateTime.month);
 
   /// Get end of month
   static DateTime endOfMonth(DateTime dateTime) =>
@@ -278,7 +278,7 @@ class DateTimeUtils {
 
   /// Get week number of year
   static int getWeekOfYear(DateTime dateTime) {
-    final startOfYear = DateTime(dateTime.year, 1);
+    final startOfYear = DateTime(dateTime.year);
     final days = dateTime.difference(startOfYear).inDays;
     return ((days + startOfYear.weekday) / 7).ceil();
   }

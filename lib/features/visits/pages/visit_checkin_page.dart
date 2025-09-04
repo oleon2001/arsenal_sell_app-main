@@ -130,16 +130,16 @@ class _VisitCheckinPageState extends State<VisitCheckinPage> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<VisitPurpose>(
-                    value: _selectedPurpose,
+                    initialValue: _selectedPurpose,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                     ),
-                    items: VisitPurpose.values.map((purpose) {
-                      return DropdownMenuItem(
-                        value: purpose,
-                        child: Text(_getVisitPurposeLabel(purpose)),
-                      );
-                    }).toList(),
+                    items: VisitPurpose.values
+                        .map((purpose) => DropdownMenuItem(
+                              value: purpose,
+                              child: Text(_getVisitPurposeLabel(purpose)),
+                            ))
+                        .toList(),
                     onChanged: (value) {
                       if (value != null) {
                         setState(() {

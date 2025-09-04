@@ -25,7 +25,6 @@ class GeofenceService {
       id: 'customer_${customer.id}',
       companyId: customer.companyId,
       ownerId: 'current_user_id', // TODO: Get from auth
-      radiusM: 10, // Default radius
       centerLatitude: customer.latitude!,
       centerLongitude: customer.longitude!,
     );

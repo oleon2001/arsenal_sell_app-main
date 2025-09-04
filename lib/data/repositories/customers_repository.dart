@@ -1,10 +1,9 @@
 import 'dart:async';
 
-import 'package:arsenal_sell_app/config/logger.dart';
-import 'package:arsenal_sell_app/data/local/drift/db.dart';
-import 'package:arsenal_sell_app/data/models/customers/customer.dart';
-import 'package:arsenal_sell_app/data/remote/supabase_client.dart';
-import 'package:arsenal_sell_app/services/sync/customer_mapper.dart';
+import '../../config/logger.dart';
+import '../local/drift/db.dart';
+import '../models/customers/customer.dart';
+import '../remote/supabase_client.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -77,9 +76,24 @@ class CustomersRepository {
   Future<void> _syncCustomersFromServer() async {
     try {
       final customers = await _supabase.getCustomers();
+      logger.i('=== SYNC FROM SERVER ===');
+      logger.i('Received ${customers.length} customers from server');
+
+      // ✅ VERIFICAR COORDENADAS ANTES DE GUARDAR
+      int withCoords = 0;
+      for (final customer in customers) {
+        final hasCoords = customer.effectiveLatitude != null &&
+            customer.effectiveLongitude != null;
+        if (hasCoords) withCoords++;
+        logger.i('Server customer: ${customer.name} - Has coords: $hasCoords');
+      }
+      logger.i(
+          'Server customers with coordinates: $withCoords/${customers.length}');
+
       final entities = customers.map(_modelToEntity).toList();
       await _db.insertCustomers(entities);
-      logger.i('Synced ${customers.length} customers from server');
+      logger.i('Synced ${customers.length} customers from server to local DB');
+      logger.i('=== END SYNC FROM SERVER ===');
     } catch (e) {
       logger.e('Sync customers from server error: $e');
     }
@@ -114,9 +128,13 @@ class CustomersRepository {
 
   Future<void> _syncCustomerToServer(Customer customer) async {
     try {
-      // Get current user ID for created_by field
+      // Verificar autenticación
       final currentUser = Supabase.instance.client.auth.currentUser;
-      final userId = currentUser?.id;
+      if (currentUser == null) {
+        logger.w(
+            'No authenticated user, skipping sync for customer: ${customer.id}');
+        return;
+      }
 
       // Get real company ID if customer has placeholder
       String realCompanyId = customer.companyId;
@@ -126,16 +144,16 @@ class CustomersRepository {
 
       // Prepare customer data with created_by if not present
       Customer customerToSync = customer;
-      if (customer.createdBy == null && userId != null) {
+      if (customer.createdBy == null) {
         customerToSync = customer.copyWith(
-          createdBy: userId,
+          createdBy: currentUser.id,
           companyId: realCompanyId,
         );
       } else if (customer.companyId == 'current_company_id') {
         customerToSync = customer.copyWith(companyId: realCompanyId);
       }
 
-      // Use upsert to handle both create and update cases
+      // Intentar sincronizar
       final syncedCustomer = await _supabase.upsertCustomer(customerToSync);
 
       // Mark as synced in local DB
@@ -145,6 +163,14 @@ class CustomersRepository {
       logger.i('Customer synced to server: ${customer.id}');
     } catch (e) {
       logger.e('Sync customer to server error: $e');
+
+      // Si es error de RLS, marcar para reintentar más tarde
+      if (e.toString().contains('42501') ||
+          e.toString().contains('row-level security')) {
+        logger.w(
+            'RLS error detected, customer will be retried later: ${customer.id}');
+      }
+
       // Mark as needing sync in case of failure
       final entity = _modelToEntity(customer);
       await _db.insertCustomer(entity);

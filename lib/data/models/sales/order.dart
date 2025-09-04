@@ -22,6 +22,29 @@ enum OrderStatus {
 }
 
 class Order {
+  factory Order.fromJson(Map<String, dynamic> json) => Order(
+        id: json['id'],
+        companyId: json['companyId'],
+        customerId: json['customerId'],
+        userId: json['userId'],
+        priceListId: json['priceListId'],
+        status: OrderStatus.values.firstWhere((e) => e.name == json['status'],
+            orElse: () => OrderStatus.draft),
+        subtotal: json['subtotal'] ?? 0.0,
+        taxTotal: json['taxTotal'] ?? 0.0,
+        discountTotal: json['discountTotal'] ?? 0.0,
+        grandTotal: json['grandTotal'] ?? 0.0,
+        createdAt: json['createdAt'] != null
+            ? DateTime.parse(json['createdAt'])
+            : null,
+        customer: json['customer'] != null
+            ? Customer.fromJson(json['customer'])
+            : null,
+        items: (json['items'] as List?)
+                ?.map((e) => OrderItem.fromJson(e))
+                .toList() ??
+            [],
+      );
   const Order({
     required this.id,
     required this.companyId,
@@ -52,30 +75,6 @@ class Order {
   final Customer? customer;
   final List<OrderItem> items;
 
-  factory Order.fromJson(Map<String, dynamic> json) => Order(
-        id: json['id'],
-        companyId: json['companyId'],
-        customerId: json['customerId'],
-        userId: json['userId'],
-        priceListId: json['priceListId'],
-        status: OrderStatus.values.firstWhere((e) => e.name == json['status'],
-            orElse: () => OrderStatus.draft),
-        subtotal: json['subtotal'] ?? 0.0,
-        taxTotal: json['taxTotal'] ?? 0.0,
-        discountTotal: json['discountTotal'] ?? 0.0,
-        grandTotal: json['grandTotal'] ?? 0.0,
-        createdAt: json['createdAt'] != null
-            ? DateTime.parse(json['createdAt'])
-            : null,
-        customer: json['customer'] != null
-            ? Customer.fromJson(json['customer'])
-            : null,
-        items: (json['items'] as List?)
-                ?.map((e) => OrderItem.fromJson(e))
-                .toList() ??
-            [],
-      );
-
   Map<String, dynamic> toJson() => {
         'id': id,
         'companyId': companyId,
@@ -94,6 +93,17 @@ class Order {
 }
 
 class OrderItem {
+  factory OrderItem.fromJson(Map<String, dynamic> json) => OrderItem(
+        id: json['id'],
+        orderId: json['orderId'],
+        productId: json['productId'],
+        qty: json['qty'],
+        price: json['price'],
+        discount: json['discount'] ?? 0.0,
+        total: json['total'],
+        product:
+            json['product'] != null ? Product.fromJson(json['product']) : null,
+      );
   const OrderItem({
     required this.id,
     required this.orderId,
@@ -113,18 +123,6 @@ class OrderItem {
   final double discount;
   final double total;
   final Product? product;
-
-  factory OrderItem.fromJson(Map<String, dynamic> json) => OrderItem(
-        id: json['id'],
-        orderId: json['orderId'],
-        productId: json['productId'],
-        qty: json['qty'],
-        price: json['price'],
-        discount: json['discount'] ?? 0.0,
-        total: json['total'],
-        product:
-            json['product'] != null ? Product.fromJson(json['product']) : null,
-      );
 
   Map<String, dynamic> toJson() => {
         'id': id,

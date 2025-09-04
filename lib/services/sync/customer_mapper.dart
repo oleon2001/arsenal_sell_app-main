@@ -4,6 +4,15 @@ import '../../data/models/customers/customer.dart';
 class CustomerMapper {
   /// Convierte un Customer de Flutter a formato compatible con Supabase
   static Map<String, dynamic> toSupabaseFormat(Customer customer) {
+    // ✅ LOGGING DETALLADO
+    print('=== CUSTOMER MAPPER TO SUPABASE ===');
+    print('Customer: ${customer.name}');
+    print('Latitude: ${customer.latitude}');
+    print('Longitude: ${customer.longitude}');
+    print(
+        'Has coordinates: ${customer.latitude != null && customer.longitude != null}');
+    print('===================================');
+
     final Map<String, dynamic> supabaseData = {
       'id': customer.id,
       'company_id': customer.companyId,
@@ -18,10 +27,22 @@ class CustomerMapper {
       'updated_at': customer.updatedAt?.toIso8601String(),
     };
 
-    // Convertir coordenadas a formato PostGIS si están disponibles
+    // ✅ ENVIAR COORDENADAS EN AMBOS FORMATOS PARA COMPATIBILIDAD
     if (customer.latitude != null && customer.longitude != null) {
+      // Formato PostGIS para consultas geoespaciales
       supabaseData['location'] =
           'POINT(${customer.longitude} ${customer.latitude})';
+
+      // Formato directo para compatibilidad y debugging
+      supabaseData['latitude'] = customer.latitude;
+      supabaseData['longitude'] = customer.longitude;
+
+      print('✅ Coordinates added to Supabase data:');
+      print('  - location: ${supabaseData['location']}');
+      print('  - latitude: ${supabaseData['latitude']}');
+      print('  - longitude: ${supabaseData['longitude']}');
+    } else {
+      print('❌ No coordinates to send');
     }
 
     return supabaseData;
@@ -29,23 +50,48 @@ class CustomerMapper {
 
   /// Convierte datos de Supabase a Customer de Flutter
   static Customer fromSupabaseFormat(Map<String, dynamic> supabaseData) {
-    // Extraer coordenadas de PostGIS location si existe
     double? latitude;
     double? longitude;
 
-    if (supabaseData['location'] != null) {
-      final locationStr = supabaseData['location'] as String;
-      if (locationStr.startsWith('POINT(')) {
+    // ✅ PRIORIDAD 1: Usar coordenadas directas si están disponibles
+    if (supabaseData['latitude'] != null && supabaseData['longitude'] != null) {
+      try {
+        latitude = supabaseData['latitude']?.toDouble();
+        longitude = supabaseData['longitude']?.toDouble();
+      } catch (e) {
+        print('Error converting latitude/longitude to double: $e');
+      }
+    }
+
+    // ✅ PRIORIDAD 2: Parsear desde PostGIS si no hay coordenadas directas
+    if ((latitude == null || longitude == null) &&
+        supabaseData['location'] != null) {
+      final locationData = supabaseData['location'];
+
+      if (locationData is String) {
+        // Formato string: POINT(longitude latitude)
+        if (locationData.startsWith('POINT(')) {
+          try {
+            final match = RegExp(r'POINT\(([-\d.]+) ([-\d.]+)\)')
+                .firstMatch(locationData);
+            if (match != null) {
+              longitude = double.parse(match.group(1)!);
+              latitude = double.parse(match.group(2)!);
+            }
+          } catch (e) {
+            print('Error parsing PostGIS string coordinates: $e');
+          }
+        }
+      } else if (locationData is Map<String, dynamic>) {
+        // Formato JSON: {"type": "Point", "coordinates": [lng, lat]}
         try {
-          // Formato: POINT(longitude latitude)
-          final match =
-              RegExp(r'POINT\(([-\d.]+) ([-\d.]+)\)').firstMatch(locationStr);
-          if (match != null) {
-            longitude = double.parse(match.group(1)!);
-            latitude = double.parse(match.group(2)!);
+          final coordinates = locationData['coordinates'] as List<dynamic>?;
+          if (coordinates != null && coordinates.length >= 2) {
+            longitude = coordinates[0]?.toDouble();
+            latitude = coordinates[1]?.toDouble();
           }
         } catch (e) {
-          // Si falla el parsing, mantener como null
+          print('Error parsing PostGIS JSON coordinates: $e');
         }
       }
     }

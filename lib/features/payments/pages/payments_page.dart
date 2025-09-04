@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/palette.dart';
 import '../../../data/models/customers/customer.dart';
+import '../../../data/models/payments/payment.dart';
+import '../../../data/repositories/payments_repository.dart';
+import '../../../data/repositories/customers_repository.dart';
 import '../bloc/payments_cubit.dart';
 
 class PaymentsPage extends StatefulWidget {
@@ -59,8 +62,9 @@ class _PaymentsPageState extends State<PaymentsPage>
           initial: () => const Center(child: Text('Cargando...')),
           loading: () => const Center(child: CircularProgressIndicator()),
           loaded: (payments) {
-            final pendingPayments =
-                payments.where((p) => p.status == 'PENDING').toList();
+            final pendingPayments = payments
+                .where((p) => p.status == PaymentStatus.pending)
+                .toList();
 
             if (pendingPayments.isEmpty) {
               return const Center(
@@ -148,8 +152,9 @@ class _PaymentsPageState extends State<PaymentsPage>
           initial: () => const Center(child: Text('Cargando...')),
           loading: () => const Center(child: CircularProgressIndicator()),
           loaded: (payments) {
-            final completedPayments =
-                payments.where((p) => p.status == 'COMPLETED').toList();
+            final completedPayments = payments
+                .where((p) => p.status == PaymentStatus.completed)
+                .toList();
 
             return ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -227,7 +232,7 @@ class PaymentCard extends StatelessWidget {
     required this.payment,
     required this.onTap,
   });
-  final dynamic payment;
+  final Payment payment;
   final VoidCallback onTap;
 
   @override
@@ -245,7 +250,7 @@ class PaymentCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        'Cliente Ejemplo',
+                        'Cliente ID: ${payment.customerId}',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -253,7 +258,7 @@ class PaymentCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '\$2,500.00',
+                      payment.formattedAmount,
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -265,14 +270,14 @@ class PaymentCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(
-                      Icons.schedule,
+                    Icon(
+                      _getStatusIcon(payment.status),
                       size: 16,
-                      color: AppPalette.textSecondary,
+                      color: Color(payment.statusColor),
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'Vence: 15/08/2025',
+                      'Método: ${payment.paymentMethod.name}',
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppPalette.textSecondary,
@@ -283,25 +288,48 @@ class PaymentCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppPalette.warning.withOpacity(0.1),
+                        color: Color(payment.statusColor).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'PENDIENTE',
+                        payment.formattedStatus,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppPalette.warning,
+                          color: Color(payment.statusColor),
                         ),
                       ),
                     ),
                   ],
                 ),
+                if (payment.reference != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Referencia: ${payment.reference}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppPalette.textSecondary,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       );
+
+  IconData _getStatusIcon(PaymentStatus status) {
+    switch (status) {
+      case PaymentStatus.pending:
+        return Icons.schedule;
+      case PaymentStatus.completed:
+        return Icons.check_circle;
+      case PaymentStatus.failed:
+        return Icons.error;
+      case PaymentStatus.cancelled:
+        return Icons.cancel;
+    }
+  }
 }
 
 class NewPaymentForm extends StatefulWidget {
@@ -315,9 +343,50 @@ class _NewPaymentFormState extends State<NewPaymentForm> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
+  final _referenceController = TextEditingController();
+
+  final PaymentsRepository _paymentsRepository = PaymentsRepository();
+  final CustomersRepository _customersRepository = CustomersRepository();
 
   Customer? _selectedCustomer;
-  String _selectedMethod = 'EFECTIVO';
+  PaymentMethod? _selectedMethod;
+  List<Customer> _customers = [];
+  List<PaymentMethod> _paymentMethods = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _notesController.dispose();
+    _referenceController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      setState(() => _isLoading = true);
+      final customers = await _customersRepository.getCustomers();
+      final paymentMethods = await _paymentsRepository.getPaymentMethods();
+      setState(() {
+        _customers = customers;
+        _paymentMethods = paymentMethods;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error cargando datos: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Container(
@@ -340,89 +409,109 @@ class _NewPaymentFormState extends State<NewPaymentForm> {
 
               // Form fields
               Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Customer selection
-                      DropdownButtonFormField<Customer>(
-                        value: _selectedCustomer,
-                        decoration: const InputDecoration(
-                          labelText: 'Cliente *',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: [], // TODO: Load customers
-                        onChanged: (customer) {
-                          setState(() {
-                            _selectedCustomer = customer;
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null) return 'Cliente es requerido';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            // Customer selection
+                            DropdownButtonFormField<Customer>(
+                              value: _selectedCustomer,
+                              decoration: const InputDecoration(
+                                labelText: 'Cliente *',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: _customers.map((customer) {
+                                return DropdownMenuItem<Customer>(
+                                  value: customer,
+                                  child: Text(customer.name),
+                                );
+                              }).toList(),
+                              onChanged: (customer) {
+                                setState(() {
+                                  _selectedCustomer = customer;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null)
+                                  return 'Cliente es requerido';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
 
-                      // Amount
-                      TextFormField(
-                        controller: _amountController,
-                        keyboardType:
-                            TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Monto *',
-                          prefixText: '\$',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          if (value?.isEmpty ?? true)
-                            return 'Monto es requerido';
-                          if (double.tryParse(value!) == null)
-                            return 'Monto inválido';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
+                            // Amount
+                            TextFormField(
+                              controller: _amountController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                              decoration: const InputDecoration(
+                                labelText: 'Monto *',
+                                prefixText: r'$',
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                if (value?.isEmpty ?? true) {
+                                  return 'Monto es requerido';
+                                }
+                                if (double.tryParse(value!) == null) {
+                                  return 'Monto inválido';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
 
-                      // Payment method
-                      DropdownButtonFormField<String>(
-                        value: _selectedMethod,
-                        decoration: const InputDecoration(
-                          labelText: 'Método de Pago',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                              value: 'EFECTIVO', child: Text('Efectivo')),
-                          DropdownMenuItem(
-                              value: 'TARJETA', child: Text('Tarjeta')),
-                          DropdownMenuItem(
-                              value: 'TRANSFERENCIA',
-                              child: Text('Transferencia')),
-                          DropdownMenuItem(
-                              value: 'CHEQUE', child: Text('Cheque')),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              _selectedMethod = value;
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 16),
+                            // Payment method
+                            DropdownButtonFormField<PaymentMethod>(
+                              value: _selectedMethod,
+                              decoration: const InputDecoration(
+                                labelText: 'Método de Pago *',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: _paymentMethods.map((method) {
+                                return DropdownMenuItem<PaymentMethod>(
+                                  value: method,
+                                  child: Text(method.name),
+                                );
+                              }).toList(),
+                              onChanged: (method) {
+                                setState(() {
+                                  _selectedMethod = method;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null)
+                                  return 'Método de pago es requerido';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
 
-                      // Notes
-                      TextFormField(
-                        controller: _notesController,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Notas',
-                          border: OutlineInputBorder(),
+                            // Reference
+                            TextFormField(
+                              controller: _referenceController,
+                              decoration: const InputDecoration(
+                                labelText: 'Referencia',
+                                border: OutlineInputBorder(),
+                                hintText: 'Número de transacción, cheque, etc.',
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Notes
+                            TextFormField(
+                              controller: _notesController,
+                              maxLines: 3,
+                              decoration: const InputDecoration(
+                                labelText: 'Notas',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
               ),
 
               // Save button
@@ -439,16 +528,45 @@ class _NewPaymentFormState extends State<NewPaymentForm> {
         ),
       );
 
-  void _savePayment() {
+  Future<void> _savePayment() async {
     if (_formKey.currentState?.validate() ?? false) {
-      // TODO: Save payment
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cobro registrado exitosamente'),
-          backgroundColor: AppPalette.success,
-        ),
-      );
+      try {
+        final payment = Payment(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          orderId: 'temp_order_id', // TODO: Get from context
+          customerId: _selectedCustomer!.id,
+          amount: double.parse(_amountController.text),
+          paymentMethod: _selectedMethod!,
+          status: PaymentStatus.pending,
+          reference: _referenceController.text.isNotEmpty
+              ? _referenceController.text
+              : null,
+          notes:
+              _notesController.text.isNotEmpty ? _notesController.text : null,
+          createdAt: DateTime.now(),
+        );
+
+        await _paymentsRepository.createPayment(payment);
+
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cobro registrado exitosamente'),
+              backgroundColor: AppPalette.success,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error registrando cobro: $e'),
+              backgroundColor: AppPalette.error,
+            ),
+          );
+        }
+      }
     }
   }
 }
@@ -492,10 +610,10 @@ class _PaymentProcessFormState extends State<PaymentProcessForm> {
                 color: AppPalette.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Monto a cobrar:',
                     style: TextStyle(
                       fontSize: 16,
@@ -503,8 +621,8 @@ class _PaymentProcessFormState extends State<PaymentProcessForm> {
                     ),
                   ),
                   Text(
-                    '\$2,500.00',
-                    style: const TextStyle(
+                    r'$2,500.00',
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: AppPalette.primary,
@@ -522,14 +640,14 @@ class _PaymentProcessFormState extends State<PaymentProcessForm> {
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'Monto recibido *',
-                prefixText: '\$',
+                prefixText: r'$',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
-              value: _selectedMethod,
+              initialValue: _selectedMethod,
               decoration: const InputDecoration(
                 labelText: 'Método de Pago',
                 border: OutlineInputBorder(),

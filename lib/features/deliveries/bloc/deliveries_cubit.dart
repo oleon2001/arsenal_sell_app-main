@@ -1,8 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
-import '../../../data/repositories/deliveries_repository.dart';
-import '../../../data/models/sales/order.dart';
+
 import '../../../config/logger.dart';
+import '../../../data/repositories/deliveries_repository.dart';
+import '../../../data/models/sales/delivery.dart';
 
 // Commented out until generated files are available
 // part 'deliveries_state.dart';
@@ -26,18 +26,13 @@ class DeliveriesCubit extends Cubit<DeliveriesState> {
 
   Future<void> confirmDelivery({
     required String deliveryId,
-    required bool delivered,
+    required DeliveryStatus status,
     String? notes,
-    List<String>? photoUrls,
-    String? signatureUrl,
   }) async {
     try {
       final currentState = state;
       if (currentState is DeliveriesLoaded) {
         emit(const DeliveriesState.processing());
-
-        final status =
-            delivered ? DeliveryStatus.delivered : DeliveryStatus.rejected;
 
         final updatedDelivery = await _repository.confirmDelivery(
           deliveryId,
@@ -56,10 +51,13 @@ class DeliveriesCubit extends Cubit<DeliveriesState> {
         emit(DeliveriesState.loaded(updatedDeliveries));
 
         // Show success message
-        emit(DeliveriesState.deliveryConfirmed(
-          updatedDelivery,
-          delivered ? 'Entrega confirmada exitosamente' : 'Entrega rechazada',
-        ));
+        final message = status == DeliveryStatus.delivered
+            ? 'Entrega confirmada exitosamente'
+            : status == DeliveryStatus.rejected
+                ? 'Entrega rechazada'
+                : 'Estado de entrega actualizado';
+
+        emit(DeliveriesState.deliveryConfirmed(updatedDelivery, message));
 
         // Return to loaded state
         emit(DeliveriesState.loaded(updatedDeliveries));
@@ -165,11 +163,11 @@ class DeliveriesCubit extends Cubit<DeliveriesState> {
       }
 
       final filteredDeliveries = currentState.deliveries.where((delivery) {
-        // Search in order ID, customer name, etc.
+        // Search in order ID, notes, etc.
         final searchFields = [
           delivery.orderId,
-          delivery.order?.customer?.name ?? '',
-          delivery.order?.id ?? '',
+          delivery.notes ?? '',
+          delivery.id,
         ];
 
         return searchFields
@@ -223,16 +221,15 @@ abstract class DeliveriesState {
 
   const factory DeliveriesState.initial() = _Initial;
   const factory DeliveriesState.loading() = _Loading;
-  const factory DeliveriesState.loaded(List<DeliveryModel> deliveries) =
+  const factory DeliveriesState.loaded(List<Delivery> deliveries) =
       DeliveriesLoaded;
   const factory DeliveriesState.filtered(
-          List<DeliveryModel> deliveries, DeliveryStatus filter) =
-      DeliveriesFiltered;
+      List<Delivery> deliveries, DeliveryStatus filter) = DeliveriesFiltered;
   const factory DeliveriesState.searched(
-      List<DeliveryModel> deliveries, String query) = DeliveriesSearched;
+      List<Delivery> deliveries, String query) = DeliveriesSearched;
   const factory DeliveriesState.processing() = _Processing;
   const factory DeliveriesState.deliveryConfirmed(
-      DeliveryModel delivery, String message) = _DeliveryConfirmed;
+      Delivery delivery, String message) = _DeliveryConfirmed;
   const factory DeliveriesState.routeCompleted(String message) =
       _RouteCompleted;
   const factory DeliveriesState.generatingReport() = _GeneratingReport;
@@ -251,19 +248,19 @@ class _Loading extends DeliveriesState {
 
 class DeliveriesLoaded extends DeliveriesState {
   const DeliveriesLoaded(this.deliveries);
-  final List<DeliveryModel> deliveries;
+  final List<Delivery> deliveries;
 }
 
 class DeliveriesFiltered extends DeliveriesState {
   const DeliveriesFiltered(this.deliveries, this.filter);
-  final List<DeliveryModel> deliveries;
+  final List<Delivery> deliveries;
   final DeliveryStatus filter;
-  List<DeliveryModel> get allDeliveries => deliveries; // Simplified
+  List<Delivery> get allDeliveries => deliveries; // Simplified
 }
 
 class DeliveriesSearched extends DeliveriesState {
   const DeliveriesSearched(this.deliveries, this.query);
-  final List<DeliveryModel> deliveries;
+  final List<Delivery> deliveries;
   final String query;
 }
 
@@ -273,7 +270,7 @@ class _Processing extends DeliveriesState {
 
 class _DeliveryConfirmed extends DeliveriesState {
   const _DeliveryConfirmed(this.delivery, this.message);
-  final DeliveryModel delivery;
+  final Delivery delivery;
   final String message;
 }
 
@@ -298,7 +295,7 @@ class _Error extends DeliveriesState {
 
 // Extension to get all deliveries from filtered state
 extension DeliveriesStateX on DeliveriesState {
-  List<DeliveryModel> get allDeliveries {
+  List<Delivery> get allDeliveries {
     if (this is DeliveriesLoaded) {
       return (this as DeliveriesLoaded).deliveries;
     } else if (this is DeliveriesFiltered) {

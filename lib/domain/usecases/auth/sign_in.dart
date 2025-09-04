@@ -1,7 +1,6 @@
-import '../../entities.dart';
-import '../../../data/repositories/auth_repository.dart';
-import '../../../data/models/auth/user_profile.dart';
 import '../../../config/logger.dart';
+import '../../../data/repositories/auth_repository.dart';
+import '../../entities.dart';
 
 class SignInParams {
   const SignInParams({

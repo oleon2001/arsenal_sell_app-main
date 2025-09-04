@@ -4,7 +4,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/palette.dart';
 import '../../../data/models/customers/customer.dart';
-import '../../../data/models/visits/visit.dart';
 import '../../../data/models/geo/location_sample.dart';
 import '../bloc/map_cubit.dart';
 import '../../customers/bloc/customers_cubit.dart';
@@ -73,7 +72,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
                       },
                       initialCameraPosition: CameraPosition(
                         target: state.currentPosition,
-                        zoom: 15.0,
+                        zoom: 15,
                       ),
                       markers: markers,
                       myLocationEnabled: true,
@@ -86,7 +85,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
                       bottom: 100,
                       right: 16,
                       child: FloatingActionButton(
-                        heroTag: "centerLocation",
+                        heroTag: 'centerLocation',
                         onPressed: _centerOnCurrentLocation,
                         backgroundColor: AppPalette.primary,
                         child:
@@ -98,7 +97,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
                       bottom: 180,
                       right: 16,
                       child: FloatingActionButton(
-                        heroTag: "refreshData",
+                        heroTag: 'refreshData',
                         onPressed: () {
                           context.read<MapCubit>().initializeMap();
                           context.read<CustomersCubit>().loadCustomers();
@@ -122,7 +121,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.error_outline,
                         size: 64,
                         color: AppPalette.error,
@@ -149,7 +148,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
           ),
         ),
         floatingActionButton: FloatingActionButton(
-          heroTag: "addLocation",
+          heroTag: 'addLocation',
           onPressed: () {
             // TODO: Implementar funcionalidad para agregar ubicación
             ScaffoldMessenger.of(context).showSnackBar(
@@ -184,13 +183,18 @@ class _LiveMapPageState extends State<LiveMapPage> {
       ),
     );
 
-    // Marcadores de clientes
+    // ✅ MEJORAR: Usar extension para obtener coordenadas efectivas
+    int customersWithCoords = 0;
     for (final customer in customers) {
-      if (customer.latitude != null && customer.longitude != null) {
+      final lat = customer.effectiveLatitude;
+      final lng = customer.effectiveLongitude;
+
+      if (lat != null && lng != null) {
+        customersWithCoords++;
         markers.add(
           Marker(
             markerId: MarkerId('customer_${customer.id}'),
-            position: LatLng(customer.latitude!, customer.longitude!),
+            position: LatLng(lat, lng),
             icon: BitmapDescriptor.defaultMarkerWithHue(
                 BitmapDescriptor.hueGreen),
             infoWindow: InfoWindow(
@@ -202,8 +206,17 @@ class _LiveMapPageState extends State<LiveMapPage> {
             ),
           ),
         );
+      } else {
+        // ✅ LOG: Registrar clientes sin coordenadas
+        print('⚠️ Customer ${customer.name} has no valid coordinates');
+        print('  - Latitude: ${customer.latitude}');
+        print('  - Longitude: ${customer.longitude}');
+        print('  - Location field: ${customer.location}');
       }
     }
+
+    print(
+        '📍 Map markers: $customersWithCoords/${customers.length} customers with coordinates');
 
     // Marcadores del equipo (para supervisores)
     for (final location in teamLocations) {

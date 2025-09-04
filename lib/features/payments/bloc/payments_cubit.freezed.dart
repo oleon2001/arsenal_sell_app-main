@@ -20,17 +20,14 @@ mixin _$PaymentsState {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -40,13 +37,13 @@ mixin _$PaymentsState {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -56,13 +53,13 @@ mixin _$PaymentsState {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -178,17 +175,14 @@ class _$InitialImpl implements _Initial {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -201,13 +195,13 @@ class _$InitialImpl implements _Initial {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -220,13 +214,13 @@ class _$InitialImpl implements _Initial {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -344,17 +338,14 @@ class _$LoadingImpl implements _Loading {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -367,13 +358,13 @@ class _$LoadingImpl implements _Loading {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -386,13 +377,13 @@ class _$LoadingImpl implements _Loading {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -476,7 +467,7 @@ abstract class _$$PaymentsLoadedImplCopyWith<$Res> {
           $Res Function(_$PaymentsLoadedImpl) then) =
       __$$PaymentsLoadedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({List<PaymentModel> payments});
+  $Res call({List<Payment> payments});
 }
 
 /// @nodoc
@@ -496,7 +487,7 @@ class __$$PaymentsLoadedImplCopyWithImpl<$Res>
       null == payments
           ? _value._payments
           : payments // ignore: cast_nullable_to_non_nullable
-              as List<PaymentModel>,
+              as List<Payment>,
     ));
   }
 }
@@ -504,12 +495,12 @@ class __$$PaymentsLoadedImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$PaymentsLoadedImpl implements PaymentsLoaded {
-  const _$PaymentsLoadedImpl(final List<PaymentModel> payments)
+  const _$PaymentsLoadedImpl(final List<Payment> payments)
       : _payments = payments;
 
-  final List<PaymentModel> _payments;
+  final List<Payment> _payments;
   @override
-  List<PaymentModel> get payments {
+  List<Payment> get payments {
     if (_payments is EqualUnmodifiableListView) return _payments;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(_payments);
@@ -544,17 +535,14 @@ class _$PaymentsLoadedImpl implements PaymentsLoaded {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -567,13 +555,13 @@ class _$PaymentsLoadedImpl implements PaymentsLoaded {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -586,13 +574,13 @@ class _$PaymentsLoadedImpl implements PaymentsLoaded {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -667,10 +655,10 @@ class _$PaymentsLoadedImpl implements PaymentsLoaded {
 }
 
 abstract class PaymentsLoaded implements PaymentsState {
-  const factory PaymentsLoaded(final List<PaymentModel> payments) =
+  const factory PaymentsLoaded(final List<Payment> payments) =
       _$PaymentsLoadedImpl;
 
-  List<PaymentModel> get payments;
+  List<Payment> get payments;
   @JsonKey(ignore: true)
   _$$PaymentsLoadedImplCopyWith<_$PaymentsLoadedImpl> get copyWith =>
       throw _privateConstructorUsedError;
@@ -683,7 +671,7 @@ abstract class _$$PaymentsPendingLoadedImplCopyWith<$Res> {
           $Res Function(_$PaymentsPendingLoadedImpl) then) =
       __$$PaymentsPendingLoadedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({List<PaymentModel> pendingPayments});
+  $Res call({List<Payment> pendingPayments});
 }
 
 /// @nodoc
@@ -703,7 +691,7 @@ class __$$PaymentsPendingLoadedImplCopyWithImpl<$Res>
       null == pendingPayments
           ? _value._pendingPayments
           : pendingPayments // ignore: cast_nullable_to_non_nullable
-              as List<PaymentModel>,
+              as List<Payment>,
     ));
   }
 }
@@ -711,12 +699,12 @@ class __$$PaymentsPendingLoadedImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$PaymentsPendingLoadedImpl implements PaymentsPendingLoaded {
-  const _$PaymentsPendingLoadedImpl(final List<PaymentModel> pendingPayments)
+  const _$PaymentsPendingLoadedImpl(final List<Payment> pendingPayments)
       : _pendingPayments = pendingPayments;
 
-  final List<PaymentModel> _pendingPayments;
+  final List<Payment> _pendingPayments;
   @override
-  List<PaymentModel> get pendingPayments {
+  List<Payment> get pendingPayments {
     if (_pendingPayments is EqualUnmodifiableListView) return _pendingPayments;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(_pendingPayments);
@@ -752,17 +740,14 @@ class _$PaymentsPendingLoadedImpl implements PaymentsPendingLoaded {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -775,13 +760,13 @@ class _$PaymentsPendingLoadedImpl implements PaymentsPendingLoaded {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -794,13 +779,13 @@ class _$PaymentsPendingLoadedImpl implements PaymentsPendingLoaded {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -875,10 +860,10 @@ class _$PaymentsPendingLoadedImpl implements PaymentsPendingLoaded {
 }
 
 abstract class PaymentsPendingLoaded implements PaymentsState {
-  const factory PaymentsPendingLoaded(
-      final List<PaymentModel> pendingPayments) = _$PaymentsPendingLoadedImpl;
+  const factory PaymentsPendingLoaded(final List<Payment> pendingPayments) =
+      _$PaymentsPendingLoadedImpl;
 
-  List<PaymentModel> get pendingPayments;
+  List<Payment> get pendingPayments;
   @JsonKey(ignore: true)
   _$$PaymentsPendingLoadedImplCopyWith<_$PaymentsPendingLoadedImpl>
       get copyWith => throw _privateConstructorUsedError;
@@ -890,7 +875,7 @@ abstract class _$$PaymentsFilteredImplCopyWith<$Res> {
           $Res Function(_$PaymentsFilteredImpl) then) =
       __$$PaymentsFilteredImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({List<PaymentModel> payments, String filter});
+  $Res call({List<Payment> payments, String filter});
 }
 
 /// @nodoc
@@ -911,7 +896,7 @@ class __$$PaymentsFilteredImplCopyWithImpl<$Res>
       null == payments
           ? _value._payments
           : payments // ignore: cast_nullable_to_non_nullable
-              as List<PaymentModel>,
+              as List<Payment>,
       null == filter
           ? _value.filter
           : filter // ignore: cast_nullable_to_non_nullable
@@ -923,12 +908,12 @@ class __$$PaymentsFilteredImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$PaymentsFilteredImpl implements PaymentsFiltered {
-  const _$PaymentsFilteredImpl(final List<PaymentModel> payments, this.filter)
+  const _$PaymentsFilteredImpl(final List<Payment> payments, this.filter)
       : _payments = payments;
 
-  final List<PaymentModel> _payments;
+  final List<Payment> _payments;
   @override
-  List<PaymentModel> get payments {
+  List<Payment> get payments {
     if (_payments is EqualUnmodifiableListView) return _payments;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(_payments);
@@ -967,17 +952,14 @@ class _$PaymentsFilteredImpl implements PaymentsFiltered {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -990,13 +972,13 @@ class _$PaymentsFilteredImpl implements PaymentsFiltered {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -1009,13 +991,13 @@ class _$PaymentsFilteredImpl implements PaymentsFiltered {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -1091,10 +1073,10 @@ class _$PaymentsFilteredImpl implements PaymentsFiltered {
 
 abstract class PaymentsFiltered implements PaymentsState {
   const factory PaymentsFiltered(
-          final List<PaymentModel> payments, final String filter) =
+          final List<Payment> payments, final String filter) =
       _$PaymentsFilteredImpl;
 
-  List<PaymentModel> get payments;
+  List<Payment> get payments;
   String get filter;
   @JsonKey(ignore: true)
   _$$PaymentsFilteredImplCopyWith<_$PaymentsFilteredImpl> get copyWith =>
@@ -1107,7 +1089,7 @@ abstract class _$$PaymentsSearchedImplCopyWith<$Res> {
           $Res Function(_$PaymentsSearchedImpl) then) =
       __$$PaymentsSearchedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({List<PaymentModel> payments, String query});
+  $Res call({List<Payment> payments, String query});
 }
 
 /// @nodoc
@@ -1128,7 +1110,7 @@ class __$$PaymentsSearchedImplCopyWithImpl<$Res>
       null == payments
           ? _value._payments
           : payments // ignore: cast_nullable_to_non_nullable
-              as List<PaymentModel>,
+              as List<Payment>,
       null == query
           ? _value.query
           : query // ignore: cast_nullable_to_non_nullable
@@ -1140,12 +1122,12 @@ class __$$PaymentsSearchedImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$PaymentsSearchedImpl implements PaymentsSearched {
-  const _$PaymentsSearchedImpl(final List<PaymentModel> payments, this.query)
+  const _$PaymentsSearchedImpl(final List<Payment> payments, this.query)
       : _payments = payments;
 
-  final List<PaymentModel> _payments;
+  final List<Payment> _payments;
   @override
-  List<PaymentModel> get payments {
+  List<Payment> get payments {
     if (_payments is EqualUnmodifiableListView) return _payments;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(_payments);
@@ -1184,17 +1166,14 @@ class _$PaymentsSearchedImpl implements PaymentsSearched {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -1207,13 +1186,13 @@ class _$PaymentsSearchedImpl implements PaymentsSearched {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -1226,13 +1205,13 @@ class _$PaymentsSearchedImpl implements PaymentsSearched {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -1308,10 +1287,10 @@ class _$PaymentsSearchedImpl implements PaymentsSearched {
 
 abstract class PaymentsSearched implements PaymentsState {
   const factory PaymentsSearched(
-          final List<PaymentModel> payments, final String query) =
+          final List<Payment> payments, final String query) =
       _$PaymentsSearchedImpl;
 
-  List<PaymentModel> get payments;
+  List<Payment> get payments;
   String get query;
   @JsonKey(ignore: true)
   _$$PaymentsSearchedImplCopyWith<_$PaymentsSearchedImpl> get copyWith =>
@@ -1358,17 +1337,14 @@ class _$ProcessingImpl implements _Processing {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -1381,13 +1357,13 @@ class _$ProcessingImpl implements _Processing {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -1400,13 +1376,13 @@ class _$ProcessingImpl implements _Processing {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -1490,7 +1466,9 @@ abstract class _$$PaymentRegisteredImplCopyWith<$Res> {
           $Res Function(_$PaymentRegisteredImpl) then) =
       __$$PaymentRegisteredImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({PaymentModel payment, String message});
+  $Res call({Payment payment, String message});
+
+  $PaymentCopyWith<$Res> get payment;
 }
 
 /// @nodoc
@@ -1511,12 +1489,20 @@ class __$$PaymentRegisteredImplCopyWithImpl<$Res>
       null == payment
           ? _value.payment
           : payment // ignore: cast_nullable_to_non_nullable
-              as PaymentModel,
+              as Payment,
       null == message
           ? _value.message
           : message // ignore: cast_nullable_to_non_nullable
               as String,
     ));
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $PaymentCopyWith<$Res> get payment {
+    return $PaymentCopyWith<$Res>(_value.payment, (value) {
+      return _then(_value.copyWith(payment: value));
+    });
   }
 }
 
@@ -1526,7 +1512,7 @@ class _$PaymentRegisteredImpl implements _PaymentRegistered {
   const _$PaymentRegisteredImpl(this.payment, this.message);
 
   @override
-  final PaymentModel payment;
+  final Payment payment;
   @override
   final String message;
 
@@ -1559,17 +1545,14 @@ class _$PaymentRegisteredImpl implements _PaymentRegistered {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -1582,13 +1565,13 @@ class _$PaymentRegisteredImpl implements _PaymentRegistered {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -1601,13 +1584,13 @@ class _$PaymentRegisteredImpl implements _PaymentRegistered {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -1683,10 +1666,9 @@ class _$PaymentRegisteredImpl implements _PaymentRegistered {
 
 abstract class _PaymentRegistered implements PaymentsState {
   const factory _PaymentRegistered(
-          final PaymentModel payment, final String message) =
-      _$PaymentRegisteredImpl;
+      final Payment payment, final String message) = _$PaymentRegisteredImpl;
 
-  PaymentModel get payment;
+  Payment get payment;
   String get message;
   @JsonKey(ignore: true)
   _$$PaymentRegisteredImplCopyWith<_$PaymentRegisteredImpl> get copyWith =>
@@ -1699,7 +1681,9 @@ abstract class _$$PaymentProcessedImplCopyWith<$Res> {
           $Res Function(_$PaymentProcessedImpl) then) =
       __$$PaymentProcessedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({PaymentModel payment, String message});
+  $Res call({Payment payment, String message});
+
+  $PaymentCopyWith<$Res> get payment;
 }
 
 /// @nodoc
@@ -1720,12 +1704,20 @@ class __$$PaymentProcessedImplCopyWithImpl<$Res>
       null == payment
           ? _value.payment
           : payment // ignore: cast_nullable_to_non_nullable
-              as PaymentModel,
+              as Payment,
       null == message
           ? _value.message
           : message // ignore: cast_nullable_to_non_nullable
               as String,
     ));
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $PaymentCopyWith<$Res> get payment {
+    return $PaymentCopyWith<$Res>(_value.payment, (value) {
+      return _then(_value.copyWith(payment: value));
+    });
   }
 }
 
@@ -1735,7 +1727,7 @@ class _$PaymentProcessedImpl implements _PaymentProcessed {
   const _$PaymentProcessedImpl(this.payment, this.message);
 
   @override
-  final PaymentModel payment;
+  final Payment payment;
   @override
   final String message;
 
@@ -1768,17 +1760,14 @@ class _$PaymentProcessedImpl implements _PaymentProcessed {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -1791,13 +1780,13 @@ class _$PaymentProcessedImpl implements _PaymentProcessed {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -1810,13 +1799,13 @@ class _$PaymentProcessedImpl implements _PaymentProcessed {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -1891,11 +1880,10 @@ class _$PaymentProcessedImpl implements _PaymentProcessed {
 }
 
 abstract class _PaymentProcessed implements PaymentsState {
-  const factory _PaymentProcessed(
-          final PaymentModel payment, final String message) =
+  const factory _PaymentProcessed(final Payment payment, final String message) =
       _$PaymentProcessedImpl;
 
-  PaymentModel get payment;
+  Payment get payment;
   String get message;
   @JsonKey(ignore: true)
   _$$PaymentProcessedImplCopyWith<_$PaymentProcessedImpl> get copyWith =>
@@ -1942,17 +1930,14 @@ class _$GeneratingReportImpl implements _GeneratingReport {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -1965,13 +1950,13 @@ class _$GeneratingReportImpl implements _GeneratingReport {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -1984,13 +1969,13 @@ class _$GeneratingReportImpl implements _GeneratingReport {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -2145,17 +2130,14 @@ class _$ReportGeneratedImpl implements _ReportGenerated {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -2168,13 +2150,13 @@ class _$ReportGeneratedImpl implements _ReportGenerated {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -2187,13 +2169,13 @@ class _$ReportGeneratedImpl implements _ReportGenerated {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,
@@ -2343,17 +2325,14 @@ class _$ErrorImpl implements _Error {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<PaymentModel> payments) loaded,
-    required TResult Function(List<PaymentModel> pendingPayments) pendingLoaded,
-    required TResult Function(List<PaymentModel> payments, String filter)
-        filtered,
-    required TResult Function(List<PaymentModel> payments, String query)
-        searched,
+    required TResult Function(List<Payment> payments) loaded,
+    required TResult Function(List<Payment> pendingPayments) pendingLoaded,
+    required TResult Function(List<Payment> payments, String filter) filtered,
+    required TResult Function(List<Payment> payments, String query) searched,
     required TResult Function() processing,
-    required TResult Function(PaymentModel payment, String message)
+    required TResult Function(Payment payment, String message)
         paymentRegistered,
-    required TResult Function(PaymentModel payment, String message)
-        paymentProcessed,
+    required TResult Function(Payment payment, String message) paymentProcessed,
     required TResult Function() generatingReport,
     required TResult Function(PaymentReport report) reportGenerated,
     required TResult Function(String message) error,
@@ -2366,13 +2345,13 @@ class _$ErrorImpl implements _Error {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PaymentModel> payments)? loaded,
-    TResult? Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult? Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult? Function(List<PaymentModel> payments, String query)? searched,
+    TResult? Function(List<Payment> payments)? loaded,
+    TResult? Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult? Function(List<Payment> payments, String filter)? filtered,
+    TResult? Function(List<Payment> payments, String query)? searched,
     TResult? Function()? processing,
-    TResult? Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult? Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult? Function(Payment payment, String message)? paymentRegistered,
+    TResult? Function(Payment payment, String message)? paymentProcessed,
     TResult? Function()? generatingReport,
     TResult? Function(PaymentReport report)? reportGenerated,
     TResult? Function(String message)? error,
@@ -2385,13 +2364,13 @@ class _$ErrorImpl implements _Error {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PaymentModel> payments)? loaded,
-    TResult Function(List<PaymentModel> pendingPayments)? pendingLoaded,
-    TResult Function(List<PaymentModel> payments, String filter)? filtered,
-    TResult Function(List<PaymentModel> payments, String query)? searched,
+    TResult Function(List<Payment> payments)? loaded,
+    TResult Function(List<Payment> pendingPayments)? pendingLoaded,
+    TResult Function(List<Payment> payments, String filter)? filtered,
+    TResult Function(List<Payment> payments, String query)? searched,
     TResult Function()? processing,
-    TResult Function(PaymentModel payment, String message)? paymentRegistered,
-    TResult Function(PaymentModel payment, String message)? paymentProcessed,
+    TResult Function(Payment payment, String message)? paymentRegistered,
+    TResult Function(Payment payment, String message)? paymentProcessed,
     TResult Function()? generatingReport,
     TResult Function(PaymentReport report)? reportGenerated,
     TResult Function(String message)? error,

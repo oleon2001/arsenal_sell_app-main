@@ -54,16 +54,45 @@ class AuthRepository {
 
   Future<UserProfile?> _fetchUserProfile(String userId) async {
     try {
-      // Usar la vista 'me' que ya incluye el email desde auth.users
-      final response =
-          await _supabase.from('me').select().eq('id', userId).maybeSingle();
+      logger.i('🔍 Intentando obtener perfil de usuario: $userId');
 
-      if (response != null) {
-        return UserProfile.fromJson(response);
+      // Intentar primero con la vista 'me'
+      try {
+        final response =
+            await _supabase.from('me').select().eq('id', userId).maybeSingle();
+
+        if (response != null) {
+          logger.i('✅ Perfil obtenido desde vista "me"');
+          return UserProfile.fromJson(response);
+        }
+      } catch (e) {
+        logger.w('⚠️ Error con vista "me": $e');
+        logger.i('🔄 Intentando método alternativo...');
       }
+
+      // Método alternativo: consultar directamente profiles + auth.users
+      final profileResponse = await _supabase
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (profileResponse != null) {
+        // Obtener email desde auth.users
+        final user = _supabase.auth.currentUser;
+        if (user != null && user.email != null) {
+          final profileData = Map<String, dynamic>.from(profileResponse);
+          profileData['email'] = user.email;
+
+          logger.i('✅ Perfil obtenido con método alternativo');
+          return UserProfile.fromJson(profileData);
+        }
+      }
+
+      logger.w('⚠️ No se pudo obtener perfil para usuario: $userId');
       return null;
     } catch (e) {
-      logger.e('Fetch user profile error: $e');
+      logger.e('❌ Fetch user profile error: $e');
       return null;
     }
   }
@@ -81,15 +110,12 @@ class AuthRepository {
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
-        emailRedirectTo: null, // No redirección de email
       );
 
       if (response.user != null) {
         // Si no se proporciona companyId, crear una compañía por defecto
         String? finalCompanyId = companyId;
-        if (finalCompanyId == null) {
-          finalCompanyId = await _createDefaultCompany(fullName);
-        }
+        finalCompanyId ??= await _createDefaultCompany(fullName);
 
         // Create profile in profiles table
         final profile = UserProfile(
@@ -99,7 +125,6 @@ class AuthRepository {
           phone: phone,
           companyId: finalCompanyId,
           role: role,
-          isActive: true,
           createdAt: DateTime.now(),
         );
 

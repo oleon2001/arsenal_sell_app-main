@@ -1,12 +1,7 @@
-import '../models/sales/product.dart';
-import '../models/sales/inventory.dart';
-import '../models/sales/inventory_movement.dart';
-import '../models/sales/inventory_transfer.dart';
-import '../models/sales/inventory_alert.dart';
-import '../models/sales/warehouse.dart';
-import '../local/drift/db.dart';
-import '../remote/supabase_client.dart';
 import '../../config/logger.dart';
+import '../local/drift/db.dart';
+import '../models/sales/inventory.dart';
+import '../remote/supabase_client.dart';
 
 class InventoryRepository {
   final DatabaseHelper _db = DatabaseHelper.instance;

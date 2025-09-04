@@ -1,11 +1,12 @@
 import 'dart:convert';
+
 import '../../config/logger.dart';
 import '../../data/models/customers/customer.dart';
-import '../../data/models/visits/visit.dart';
-import '../../data/models/sales/order.dart';
 import '../../data/models/geo/location_sample.dart';
 import '../../data/models/routes/route_plan.dart';
-import '../../data/repositories/payments_repository.dart';
+import '../../data/models/sales/order.dart';
+import '../../data/models/payments/payment.dart';
+import '../../data/models/visits/visit.dart';
 
 /// Service for serializing and deserializing data for sync operations
 class SyncSerializers {
@@ -243,18 +244,18 @@ class SyncSerializers {
   }
 
   /// Serialize payment data for sync
-  static Map<String, dynamic> serializePayment(PaymentModel payment) {
+  static Map<String, dynamic> serializePayment(Payment payment) {
     try {
       final data = {
         'id': payment.id,
         'order_id': payment.orderId,
         'customer_id': payment.customerId,
-        'user_id': payment.userId,
         'amount': payment.amount,
-        'method': payment.method,
-        'paid_at': payment.paidAt.toIso8601String(),
+        'payment_method': payment.paymentMethod.toJson(),
+        'created_at': payment.createdAt?.toIso8601String(),
         'notes': payment.notes,
-        'status': payment.status,
+        'status': payment.status.name,
+        'reference': payment.reference,
       };
 
       // Add sync metadata
@@ -270,18 +271,20 @@ class SyncSerializers {
   }
 
   /// Deserialize payment data from sync
-  static PaymentModel deserializePayment(Map<String, dynamic> data) {
+  static Payment deserializePayment(Map<String, dynamic> data) {
     try {
-      return PaymentModel(
+      return Payment(
         id: data['id'],
         orderId: data['order_id'],
         customerId: data['customer_id'],
-        userId: data['user_id'],
         amount: data['amount']?.toDouble() ?? 0,
-        method: data['method'],
-        paidAt: DateTime.parse(data['paid_at']),
+        paymentMethod: PaymentMethod.fromJson(data['payment_method']),
+        createdAt: data['created_at'] != null
+            ? DateTime.parse(data['created_at'])
+            : null,
         notes: data['notes'],
-        status: data['status'] ?? 'PENDING',
+        status: _parsePaymentStatus(data['status']),
+        reference: data['reference'],
       );
     } catch (e) {
       logger.e('Deserialize payment error: $e');
@@ -326,7 +329,7 @@ class SyncSerializers {
     List<Visit>? visits,
     List<Order>? orders,
     List<LocationSample>? locationSamples,
-    List<PaymentModel>? payments,
+    List<Payment>? payments,
     List<RoutePlan>? routes,
   }) {
     try {
@@ -508,6 +511,23 @@ class SyncSerializers {
     } catch (e) {
       logger.e('Decompress sync data error: $e');
       rethrow;
+    }
+  }
+
+  // Helper methods for payment parsing
+  static PaymentStatus _parsePaymentStatus(String? status) {
+    if (status == null) return PaymentStatus.pending;
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return PaymentStatus.pending;
+      case 'completed':
+        return PaymentStatus.completed;
+      case 'failed':
+        return PaymentStatus.failed;
+      case 'cancelled':
+        return PaymentStatus.cancelled;
+      default:
+        return PaymentStatus.pending;
     }
   }
 }

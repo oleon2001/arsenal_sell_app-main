@@ -8,7 +8,6 @@ class AppTheme {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppPalette.primary,
-          brightness: Brightness.light,
           primary: AppPalette.primary,
           secondary: AppPalette.secondary,
           surface: AppPalette.surface,
@@ -31,7 +30,7 @@ class AppTheme {
         ),
 
         // Bottom Navigation Bar Theme
-        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           type: BottomNavigationBarType.fixed,
           selectedItemColor: AppPalette.primary,
           unselectedItemColor: AppPalette.textSecondary,
@@ -70,7 +69,7 @@ class AppTheme {
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: AppPalette.primary,
-            side: BorderSide(color: AppPalette.primary),
+            side: const BorderSide(color: AppPalette.primary),
             shape: AppShapes.buttonShape,
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
@@ -94,10 +93,10 @@ class AppTheme {
         ),
 
         // Card Theme
-        cardTheme: CardThemeData(
+        cardTheme: const CardThemeData(
           elevation: 2,
           shape: AppShapes.cardShape,
-          margin: const EdgeInsets.only(bottom: AppSpacing.listItemSpacing),
+          margin: EdgeInsets.only(bottom: AppSpacing.listItemSpacing),
           color: AppPalette.surface,
         ),
 
@@ -105,19 +104,19 @@ class AppTheme {
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppShapes.sm),
-            borderSide: BorderSide(color: AppPalette.divider),
+            borderSide: const BorderSide(color: AppPalette.divider),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppShapes.sm),
-            borderSide: BorderSide(color: AppPalette.divider),
+            borderSide: const BorderSide(color: AppPalette.divider),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppShapes.sm),
-            borderSide: BorderSide(color: AppPalette.primary, width: 2),
+            borderSide: const BorderSide(color: AppPalette.primary, width: 2),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppShapes.sm),
-            borderSide: BorderSide(color: AppPalette.error),
+            borderSide: const BorderSide(color: AppPalette.error),
           ),
           filled: true,
           fillColor: AppPalette.surface,
@@ -137,9 +136,9 @@ class AppTheme {
         ),
 
         // Bottom Sheet Theme
-        bottomSheetTheme: BottomSheetThemeData(
+        bottomSheetTheme: const BottomSheetThemeData(
           backgroundColor: AppPalette.surface,
-          shape: const RoundedRectangleBorder(
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(
               top: Radius.circular(AppShapes.lg),
             ),
@@ -160,7 +159,7 @@ class AppTheme {
         ),
 
         // Tab Bar Theme
-        tabBarTheme: TabBarThemeData(
+        tabBarTheme: const TabBarThemeData(
           labelColor: AppPalette.primary,
           unselectedLabelColor: AppPalette.textSecondary,
           indicatorColor: AppPalette.primary,
@@ -169,20 +168,20 @@ class AppTheme {
         ),
 
         // Divider Theme
-        dividerTheme: DividerThemeData(
+        dividerTheme: const DividerThemeData(
           color: AppPalette.divider,
           thickness: 1,
           space: AppSpacing.md,
         ),
 
         // Icon Theme
-        iconTheme: IconThemeData(
+        iconTheme: const IconThemeData(
           color: AppPalette.textSecondary,
           size: 24,
         ),
 
         // Text Theme
-        textTheme: TextTheme(
+        textTheme: const TextTheme(
           displayLarge: AppTypography.headline1,
           displayMedium: AppTypography.headline2,
           displaySmall: AppTypography.headline3,
@@ -229,11 +228,11 @@ class AppTheme {
             color: AppPalette.textOnSurfaceDark,
             fontWeight: FontWeight.w600,
           ),
-          iconTheme: IconThemeData(color: AppPalette.textOnSurfaceDark),
+          iconTheme: const IconThemeData(color: AppPalette.textOnSurfaceDark),
         ),
 
         // Bottom Navigation Bar Theme
-        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           type: BottomNavigationBarType.fixed,
           selectedItemColor: AppPalette.primary,
           unselectedItemColor: AppPalette.textSecondary,
@@ -244,10 +243,10 @@ class AppTheme {
         ),
 
         // Card Theme
-        cardTheme: CardThemeData(
+        cardTheme: const CardThemeData(
           elevation: 2,
           shape: AppShapes.cardShape,
-          margin: const EdgeInsets.only(bottom: AppSpacing.listItemSpacing),
+          margin: EdgeInsets.only(bottom: AppSpacing.listItemSpacing),
           color: AppPalette.surfaceVariantDark,
         ),
 
@@ -255,19 +254,19 @@ class AppTheme {
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppShapes.sm),
-            borderSide: BorderSide(color: AppPalette.dividerDark),
+            borderSide: const BorderSide(color: AppPalette.dividerDark),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppShapes.sm),
-            borderSide: BorderSide(color: AppPalette.dividerDark),
+            borderSide: const BorderSide(color: AppPalette.dividerDark),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppShapes.sm),
-            borderSide: BorderSide(color: AppPalette.primary, width: 2),
+            borderSide: const BorderSide(color: AppPalette.primary, width: 2),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppShapes.sm),
-            borderSide: BorderSide(color: AppPalette.error),
+            borderSide: const BorderSide(color: AppPalette.error),
           ),
           filled: true,
           fillColor: AppPalette.surfaceVariantDark,
@@ -287,9 +286,9 @@ class AppTheme {
         ),
 
         // Bottom Sheet Theme
-        bottomSheetTheme: BottomSheetThemeData(
+        bottomSheetTheme: const BottomSheetThemeData(
           backgroundColor: AppPalette.surfaceDark,
-          shape: const RoundedRectangleBorder(
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(
               top: Radius.circular(AppShapes.lg),
             ),
@@ -298,14 +297,14 @@ class AppTheme {
         ),
 
         // Divider Theme
-        dividerTheme: DividerThemeData(
+        dividerTheme: const DividerThemeData(
           color: AppPalette.dividerDark,
           thickness: 1,
           space: AppSpacing.md,
         ),
 
         // Icon Theme
-        iconTheme: IconThemeData(
+        iconTheme: const IconThemeData(
           color: AppPalette.textSecondary,
           size: 24,
         ),
@@ -367,14 +366,14 @@ class AppTheme {
 
   // Helper method to create MaterialColor from a single color
   static MaterialColor _createMaterialColor(Color color) {
-    List<double> strengths = <double>[.05];
-    Map<int, Color> swatch = {};
+    final List<double> strengths = <double>[.05];
+    final Map<int, Color> swatch = {};
     final int r = color.red, g = color.green, b = color.blue;
 
     for (int i = 1; i < 10; i++) {
       strengths.add(0.1 * i);
     }
-    for (var strength in strengths) {
+    for (final strength in strengths) {
       final double ds = 0.5 - strength;
       swatch[(strength * 1000).round()] = Color.fromRGBO(
         r + ((ds < 0 ? r : (255 - r)) * ds).round(),

@@ -21,9 +21,7 @@ class PushNotificationHandler {
   static Future<void> initialize() async {
     try {
       // Request permission for notifications
-      final settings = await _firebaseMessaging.requestPermission(
-        badge: true,
-      );
+      final settings = await _firebaseMessaging.requestPermission();
 
       logger.i(
           'Push notification permission status: ${settings.authorizationStatus}');
@@ -473,25 +471,24 @@ class PushNotificationData {
     this.isRead = false,
   });
 
-  factory PushNotificationData.fromJson(Map<String, dynamic> json) {
-    return PushNotificationData(
-      id: json['id'],
-      title: json['title'],
-      body: json['body'],
-      type: NotificationType.values.firstWhere(
-        (e) => e.name == json['type'],
-        orElse: () => NotificationType.general,
-      ),
-      priority: NotificationPriority.values.firstWhere(
-        (e) => e.name == json['priority'],
-        orElse: () => NotificationPriority.normal,
-      ),
-      data: Map<String, dynamic>.from(json['data'] ?? {}),
-      receivedAt: DateTime.parse(json['receivedAt']),
-      imageUrl: json['imageUrl'],
-      isRead: json['isRead'] ?? false,
-    );
-  }
+  factory PushNotificationData.fromJson(Map<String, dynamic> json) =>
+      PushNotificationData(
+        id: json['id'],
+        title: json['title'],
+        body: json['body'],
+        type: NotificationType.values.firstWhere(
+          (e) => e.name == json['type'],
+          orElse: () => NotificationType.general,
+        ),
+        priority: NotificationPriority.values.firstWhere(
+          (e) => e.name == json['priority'],
+          orElse: () => NotificationPriority.normal,
+        ),
+        data: Map<String, dynamic>.from(json['data'] ?? {}),
+        receivedAt: DateTime.parse(json['receivedAt']),
+        imageUrl: json['imageUrl'],
+        isRead: json['isRead'] ?? false,
+      );
   final String id;
   final String title;
   final String body;

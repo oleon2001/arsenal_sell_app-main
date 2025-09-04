@@ -4,18 +4,18 @@ class Env {
   static String get supabaseUrl {
     try {
       return dotenv.env['SUPABASE_URL'] ??
-          'https://vxlgqalehtocxqkrvfuy.supabase.co';
+          'https://ifvbopagsruolzavfrcn.supabase.co';
     } catch (e) {
-      return 'https://vxlgqalehtocxqkrvfuy.supabase.co';
+      return 'https://ifvbopagsruolzavfrcn.supabase.co';
     }
   }
 
   static String get supabaseAnonKey {
     try {
       return dotenv.env['SUPABASE_ANON_KEY'] ??
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4bGdxYWxlaHRvY3hxa3J2ZnV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDc0OTMsImV4cCI6MjA3MjQyMzQ5M30._rBuxCDe9kCLt5k3YTq33zXMCR3yIxhBZCPNHkeDccU';
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmdmJvcGFnc3J1b2x6YXZmcmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MzQ5NTUsImV4cCI6MjA3MjUxMDk1NX0.OpEdNMR8lblHv2UU6oj7NzsfdSCuOECu7M5gsMN0g6g';
     } catch (e) {
-      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4bGdxYWxlaHRvY3hxa3J2ZnV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDc0OTMsImV4cCI6MjA3MjQyMzQ5M30._rBuxCDe9kCLt5k3YTq33zXMCR3yIxhBZCPNHkeDccU';
+      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmdmJvcGFnc3J1b2x6YXZmcmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MzQ5NTUsImV4cCI6MjA3MjUxMDk1NX0.OpEdNMR8lblHv2UU6oj7NzsfdSCuOECu7M5gsMN0g6g';
     }
   }
 

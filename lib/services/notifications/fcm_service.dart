@@ -8,9 +8,7 @@ class FCMService {
 
   static Future<void> initialize() async {
     // Request permission
-    await FirebaseMessaging.instance.requestPermission(
-      badge: true,
-    );
+    await FirebaseMessaging.instance.requestPermission();
 
     // Get FCM token
     final token = await FirebaseMessaging.instance.getToken();

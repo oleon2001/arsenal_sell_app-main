@@ -6,18 +6,18 @@ import 'palette.dart';
 
 class AppSpacing {
   // Espaciado base usando múltiplos de 4
-  static const double xs = 4.0;
-  static const double sm = 8.0;
-  static const double md = 16.0;
-  static const double lg = 24.0;
-  static const double xl = 32.0;
-  static const double xxl = 48.0;
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 16;
+  static const double lg = 24;
+  static const double xl = 32;
+  static const double xxl = 48;
 
   // Espaciado específico para componentes
-  static const double cardPadding = 16.0;
-  static const double buttonPadding = 12.0;
-  static const double inputPadding = 12.0;
-  static const double listItemSpacing = 12.0;
+  static const double cardPadding = 16;
+  static const double buttonPadding = 12;
+  static const double inputPadding = 12;
+  static const double listItemSpacing = 12;
 }
 
 class AppTypography {
@@ -112,11 +112,11 @@ class AppTypography {
 
 class AppShapes {
   // Border radius
-  static const double xs = 4.0;
-  static const double sm = 8.0;
-  static const double md = 12.0;
-  static const double lg = 16.0;
-  static const double xl = 24.0;
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 24;
 
   // Card shapes
   static const RoundedRectangleBorder cardShape = RoundedRectangleBorder(
@@ -138,7 +138,6 @@ class AppShadows {
       color: Color(0x0A000000),
       blurRadius: 8,
       offset: Offset(0, 2),
-      spreadRadius: 0,
     ),
   ];
 
@@ -147,7 +146,6 @@ class AppShadows {
       color: Color(0x14000000),
       blurRadius: 12,
       offset: Offset(0, 4),
-      spreadRadius: 0,
     ),
   ];
 
@@ -156,7 +154,6 @@ class AppShadows {
       color: Color(0x1A000000),
       blurRadius: 16,
       offset: Offset(0, 6),
-      spreadRadius: 0,
     ),
   ];
 }
@@ -182,7 +179,7 @@ class AppComponents {
     VoidCallback? onTap,
     bool elevated = true,
   }) {
-    Widget content = Container(
+    final Widget content = Container(
       padding: padding ?? const EdgeInsets.all(AppSpacing.cardPadding),
       margin:
           margin ?? const EdgeInsets.only(bottom: AppSpacing.listItemSpacing),
@@ -213,25 +210,24 @@ class AppComponents {
     required String text,
     required Color color,
     bool outlined = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: outlined ? Colors.transparent : color.withOpacity(0.1),
-        border: outlined ? Border.all(color: color, width: 1) : null,
-        borderRadius: BorderRadius.circular(AppShapes.xs),
-      ),
-      child: Text(
-        text,
-        style: AppTypography.status.copyWith(
-          color: outlined ? color : color,
+  }) =>
+      Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
         ),
-      ),
-    );
-  }
+        decoration: BoxDecoration(
+          color: outlined ? Colors.transparent : color.withOpacity(0.1),
+          border: outlined ? Border.all(color: color, width: 1) : null,
+          borderRadius: BorderRadius.circular(AppShapes.xs),
+        ),
+        child: Text(
+          text,
+          style: AppTypography.status.copyWith(
+            color: outlined ? color : color,
+          ),
+        ),
+      );
 
   /// Botón de acción con icono y texto
   static Widget actionButton({
@@ -283,62 +279,59 @@ class AppComponents {
     Color? iconColor,
     Color? textColor,
     bool compact = false,
-  }) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: compact ? 14 : 16,
-          color: iconColor ?? AppPalette.textSecondary,
-        ),
-        SizedBox(width: compact ? AppSpacing.xs : AppSpacing.sm),
-        Expanded(
-          child: Text(
-            value ?? label,
-            style:
-                (compact ? AppTypography.bodySmall : AppTypography.bodyMedium)
-                    .copyWith(color: textColor),
-            overflow: TextOverflow.ellipsis,
+  }) =>
+      Row(
+        children: [
+          Icon(
+            icon,
+            size: compact ? 14 : 16,
+            color: iconColor ?? AppPalette.textSecondary,
           ),
-        ),
-      ],
-    );
-  }
-
-  /// Separador visual con texto opcional
-  static Widget sectionDivider({String? title}) {
-    return Column(
-      children: [
-        if (title != null) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-            child: Row(
-              children: [
-                Expanded(
-                  child:
-                      Divider(color: AppPalette.textDisabled.withOpacity(0.3)),
-                ),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  child: Text(
-                    title,
-                    style: AppTypography.labelMedium.copyWith(
-                      color: AppPalette.textSecondary,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child:
-                      Divider(color: AppPalette.textDisabled.withOpacity(0.3)),
-                ),
-              ],
+          SizedBox(width: compact ? AppSpacing.xs : AppSpacing.sm),
+          Expanded(
+            child: Text(
+              value ?? label,
+              style:
+                  (compact ? AppTypography.bodySmall : AppTypography.bodyMedium)
+                      .copyWith(color: textColor),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-        ] else ...[
-          const Divider(color: AppPalette.textDisabled),
         ],
-      ],
-    );
-  }
+      );
+
+  /// Separador visual con texto opcional
+  static Widget sectionDivider({String? title}) => Column(
+        children: [
+          if (title != null) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Divider(
+                        color: AppPalette.textDisabled.withOpacity(0.3)),
+                  ),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    child: Text(
+                      title,
+                      style: AppTypography.labelMedium.copyWith(
+                        color: AppPalette.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(
+                        color: AppPalette.textDisabled.withOpacity(0.3)),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            const Divider(color: AppPalette.textDisabled),
+          ],
+        ],
+      );
 }

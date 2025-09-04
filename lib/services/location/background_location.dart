@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:isolate';
-import 'dart:ui';
-import 'package:flutter/foundation.dart';
+
 import 'package:geolocator/geolocator.dart';
+
 import '../../config/logger.dart';
-import '../../config/app_constants.dart';
 import '../../data/models/geo/location_sample.dart';
-import '../../data/repositories/tracking_repository.dart';
 
 class BackgroundLocationService {
   static const String _isolateName = 'LocationIsolate';

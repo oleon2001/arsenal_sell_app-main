@@ -1,8 +1,6 @@
-import '../../entities.dart';
-import '../../../data/repositories/customers_repository.dart';
-import '../../../data/models/customers/customer.dart';
-import '../../../data/models/auth/user_profile.dart';
 import '../../../config/logger.dart';
+import '../../../data/repositories/customers_repository.dart';
+import '../../entities.dart';
 
 class ReassignCustomerParams {
   const ReassignCustomerParams({

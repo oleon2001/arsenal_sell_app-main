@@ -6,38 +6,6 @@ import 'product.dart';
 // part 'price_list.g.dart';
 
 class PriceListModel {
-  const PriceListModel({
-    required this.id,
-    required this.companyId,
-    required this.name,
-    this.description,
-    this.currency = 'USD',
-    this.isActive = true,
-    this.isDefault = false,
-    this.validFrom,
-    this.validTo,
-    this.createdAt,
-    this.updatedAt,
-    this.prices = const [],
-    this.targetSegment,
-    this.type,
-  });
-
-  final String id;
-  final String companyId;
-  final String name;
-  final String? description;
-  final String currency;
-  final bool isActive;
-  final bool isDefault;
-  final DateTime? validFrom;
-  final DateTime? validTo;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
-  final List<PriceModel> prices;
-  final CustomerSegment? targetSegment;
-  final PriceListType? type;
-
   factory PriceListModel.fromJson(Map<String, dynamic> json) => PriceListModel(
         id: json['id'],
         companyId: json['companyId'],
@@ -69,9 +37,65 @@ class PriceListModel {
             ? PriceListType.values.firstWhere((e) => e.name == json['type'])
             : null,
       );
+  const PriceListModel({
+    required this.id,
+    required this.companyId,
+    required this.name,
+    this.description,
+    this.currency = 'USD',
+    this.isActive = true,
+    this.isDefault = false,
+    this.validFrom,
+    this.validTo,
+    this.createdAt,
+    this.updatedAt,
+    this.prices = const [],
+    this.targetSegment,
+    this.type,
+  });
+
+  final String id;
+  final String companyId;
+  final String name;
+  final String? description;
+  final String currency;
+  final bool isActive;
+  final bool isDefault;
+  final DateTime? validFrom;
+  final DateTime? validTo;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final List<PriceModel> prices;
+  final CustomerSegment? targetSegment;
+  final PriceListType? type;
 }
 
 class PriceModel {
+  factory PriceModel.fromJson(Map<String, dynamic> json) => PriceModel(
+        id: json['id'],
+        priceListId: json['priceListId'],
+        productId: json['productId'],
+        price: json['price'],
+        costPrice: json['costPrice'],
+        margin: json['margin'],
+        minQuantity: json['minQuantity'],
+        maxQuantity: json['maxQuantity'],
+        validFrom: json['validFrom'] != null
+            ? DateTime.parse(json['validFrom'])
+            : null,
+        validTo:
+            json['validTo'] != null ? DateTime.parse(json['validTo']) : null,
+        isActive: json['isActive'] ?? true,
+        product:
+            json['product'] != null ? Product.fromJson(json['product']) : null,
+        unit: json['unit'] != null
+            ? PriceUnit.values.firstWhere((e) => e.name == json['unit'])
+            : null,
+        tiers: (json['tiers'] as List?)
+                ?.map((e) => PriceTier.fromJson(e))
+                .toList() ??
+            [],
+      );
   const PriceModel({
     required this.id,
     required this.priceListId,
@@ -103,35 +127,15 @@ class PriceModel {
   final Product? product;
   final PriceUnit? unit;
   final List<PriceTier> tiers;
-
-  factory PriceModel.fromJson(Map<String, dynamic> json) => PriceModel(
-        id: json['id'],
-        priceListId: json['priceListId'],
-        productId: json['productId'],
-        price: json['price'],
-        costPrice: json['costPrice'],
-        margin: json['margin'],
-        minQuantity: json['minQuantity'],
-        maxQuantity: json['maxQuantity'],
-        validFrom: json['validFrom'] != null
-            ? DateTime.parse(json['validFrom'])
-            : null,
-        validTo:
-            json['validTo'] != null ? DateTime.parse(json['validTo']) : null,
-        isActive: json['isActive'] ?? true,
-        product:
-            json['product'] != null ? Product.fromJson(json['product']) : null,
-        unit: json['unit'] != null
-            ? PriceUnit.values.firstWhere((e) => e.name == json['unit'])
-            : null,
-        tiers: (json['tiers'] as List?)
-                ?.map((e) => PriceTier.fromJson(e))
-                .toList() ??
-            [],
-      );
 }
 
 class PriceTier {
+  factory PriceTier.fromJson(Map<String, dynamic> json) => PriceTier(
+        minQuantity: json['minQuantity'],
+        price: json['price'],
+        maxQuantity: json['maxQuantity'],
+        discountPercentage: json['discountPercentage'],
+      );
   const PriceTier({
     required this.minQuantity,
     required this.price,
@@ -143,13 +147,6 @@ class PriceTier {
   final double price;
   final double? maxQuantity;
   final double? discountPercentage;
-
-  factory PriceTier.fromJson(Map<String, dynamic> json) => PriceTier(
-        minQuantity: json['minQuantity'],
-        price: json['price'],
-        maxQuantity: json['maxQuantity'],
-        discountPercentage: json['discountPercentage'],
-      );
 }
 
 enum PriceListType {
@@ -436,6 +433,10 @@ extension PriceUnitX on PriceUnit {
 }
 
 class PriceRange {
+  factory PriceRange.fromJson(Map<String, dynamic> json) => PriceRange(
+        min: json['min'],
+        max: json['max'],
+      );
   const PriceRange({
     required this.min,
     required this.max,
@@ -443,11 +444,6 @@ class PriceRange {
 
   final double min;
   final double max;
-
-  factory PriceRange.fromJson(Map<String, dynamic> json) => PriceRange(
-        min: json['min'],
-        max: json['max'],
-      );
 }
 
 // Price calculation utilities

@@ -1,7 +1,7 @@
+import '../../../config/logger.dart';
 import '../../../data/models/sales/order.dart';
 import '../../../data/models/sales/promotion.dart';
 import '../../../data/repositories/orders_repository.dart';
-import '../../../config/logger.dart';
 
 class ApplyPromotionsUseCase {
   ApplyPromotionsUseCase(this._repository);

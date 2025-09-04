@@ -193,7 +193,6 @@ class CompleteVisitUseCase {
         checkoutLongitude: data.checkoutLongitude,
         checkoutAccuracyM: data.checkoutAccuracy,
         notes: data.notes,
-        isSynced: false,
       );
 
       return await _visitsRepository.finishVisit(visit);

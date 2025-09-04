@@ -72,7 +72,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.error_outline,
                       size: 64,
                       color: AppPalette.error,
@@ -201,52 +201,54 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 16),
 
               // Full Name
-              _isEditing
-                  ? TextFormField(
-                      controller: _fullNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Nombre Completo',
-                        prefixIcon: Icon(Icons.person),
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value?.isEmpty ?? true) {
-                          return 'El nombre es requerido';
-                        }
-                        return null;
-                      },
-                    )
-                  : _buildInfoField(
-                      'Nombre Completo',
-                      user.fullName ?? 'No especificado',
-                      Icons.person,
-                    ),
+              if (_isEditing)
+                TextFormField(
+                  controller: _fullNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre Completo',
+                    prefixIcon: Icon(Icons.person),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value?.isEmpty ?? true) {
+                      return 'El nombre es requerido';
+                    }
+                    return null;
+                  },
+                )
+              else
+                _buildInfoField(
+                  'Nombre Completo',
+                  user.fullName ?? 'No especificado',
+                  Icons.person,
+                ),
               const SizedBox(height: 16),
 
               // Phone
-              _isEditing
-                  ? TextFormField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Teléfono',
-                        prefixIcon: Icon(Icons.phone),
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value?.isNotEmpty == true) {
-                          if (!RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(value!)) {
-                            return 'Formato de teléfono inválido';
-                          }
-                        }
-                        return null;
-                      },
-                    )
-                  : _buildInfoField(
-                      'Teléfono',
-                      user.phone ?? 'No especificado',
-                      Icons.phone,
-                    ),
+              if (_isEditing)
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Teléfono',
+                    prefixIcon: Icon(Icons.phone),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value?.isNotEmpty == true) {
+                      if (!RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(value!)) {
+                        return 'Formato de teléfono inválido';
+                      }
+                    }
+                    return null;
+                  },
+                )
+              else
+                _buildInfoField(
+                  'Teléfono',
+                  user.phone ?? 'No especificado',
+                  Icons.phone,
+                ),
               const SizedBox(height: 16),
 
               // Company ID (read-only)
@@ -364,25 +366,25 @@ class _ProfilePageState extends State<ProfilePage> {
                 'Notificaciones',
                 'Configurar alertas y notificaciones',
                 Icons.notifications,
-                () => _showNotificationSettings(),
+                _showNotificationSettings,
               ),
               _buildSettingsTile(
                 'Ubicación',
                 'Configurar servicios de ubicación',
                 Icons.location_on,
-                () => _showLocationSettings(),
+                _showLocationSettings,
               ),
               _buildSettingsTile(
                 'Sincronización',
                 'Configurar sincronización de datos',
                 Icons.sync,
-                () => _showSyncSettings(),
+                _showSyncSettings,
               ),
               _buildSettingsTile(
                 'Acerca de',
                 'Información de la aplicación',
                 Icons.info,
-                () => _showAboutDialog(),
+                _showAboutDialog,
               ),
             ],
           ),

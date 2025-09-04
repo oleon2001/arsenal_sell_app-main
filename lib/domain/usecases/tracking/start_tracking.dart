@@ -437,20 +437,18 @@ class TrackingAnalytics {
     required this.stopDuration,
   });
 
-  factory TrackingAnalytics.empty() {
-    return TrackingAnalytics(
-      userId: '',
-      startDate: DateTime.now(),
-      endDate: DateTime.now(),
-      totalDistance: 0,
-      totalTime: Duration.zero,
-      averageSpeed: 0,
-      maxSpeed: 0,
-      locationSamples: 0,
-      stops: 0,
-      stopDuration: Duration.zero,
-    );
-  }
+  factory TrackingAnalytics.empty() => TrackingAnalytics(
+        userId: '',
+        startDate: DateTime.now(),
+        endDate: DateTime.now(),
+        totalDistance: 0,
+        totalTime: Duration.zero,
+        averageSpeed: 0,
+        maxSpeed: 0,
+        locationSamples: 0,
+        stops: 0,
+        stopDuration: Duration.zero,
+      );
   final String userId;
   final DateTime startDate;
   final DateTime endDate;

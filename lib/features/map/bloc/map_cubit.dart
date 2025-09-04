@@ -1,14 +1,15 @@
 import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import '../../../data/models/geo/location_sample.dart';
-import '../../../data/models/customers/customer.dart';
-import '../../../services/location/location_service.dart';
-import '../../../data/repositories/tracking_repository.dart';
-import '../../../data/repositories/customers_repository.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 import '../../../config/logger.dart';
+import '../../../data/models/customers/customer.dart';
+import '../../../data/models/geo/location_sample.dart';
+import '../../../data/repositories/customers_repository.dart';
+import '../../../data/repositories/tracking_repository.dart';
+import '../../../services/location/location_service.dart';
 
 // Commented out until generated files are available
 // part 'map_state.dart';
@@ -125,6 +126,21 @@ class MapCubit extends Cubit<MapState> {
     try {
       final customers = await _customersRepository.getCustomers();
       logger.i('MapCubit loaded ${customers.length} customers for map');
+
+      // ✅ VERIFICAR COORDENADAS
+      int customersWithCoords = 0;
+      for (final customer in customers) {
+        if (customer.effectiveLatitude != null &&
+            customer.effectiveLongitude != null) {
+          customersWithCoords++;
+        } else {
+          logger.w(
+              'Customer ${customer.name} missing coordinates - Location field: ${customer.location}');
+        }
+      }
+      logger.i(
+          'Customers with coordinates for map: $customersWithCoords/${customers.length}');
+
       return customers;
     } catch (e) {
       logger.e('Load customers in map error: $e');

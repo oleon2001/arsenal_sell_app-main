@@ -33,15 +33,9 @@ class _CustomersListPageState extends State<CustomersListPage> {
           title: const Text('Clientes'),
           actions: [
             IconButton(
-              icon: const Icon(Icons.location_on),
-              tooltip: 'Agregar ubicaciones de prueba',
-              onPressed: () =>
-                  context.read<CustomersCubit>().addTestLocationsToCustomers(),
-            ),
-            IconButton(
               icon: const Icon(Icons.sync),
-              onPressed: () =>
-                  context.read<CustomersCubit>().syncCustomers(),
+              tooltip: 'Sincronizar clientes',
+              onPressed: () => context.read<CustomersCubit>().syncCustomers(),
             ),
           ],
         ),
@@ -96,9 +90,8 @@ class _CustomersListPageState extends State<CustomersListPage> {
                     }
 
                     return RefreshIndicator(
-                      onRefresh: () => context
-                          .read<CustomersCubit>()
-                          .syncCustomers(),
+                      onRefresh: () =>
+                          context.read<CustomersCubit>().syncCustomers(),
                       child: ListView.builder(
                         itemCount: customers.length,
                         itemBuilder: (context, index) {

@@ -1,7 +1,6 @@
-import '../../../data/repositories/deliveries_repository.dart';
-import '../../../data/models/sales/order.dart';
-import '../../../services/location/location_service.dart';
 import '../../../config/logger.dart';
+import '../../../data/repositories/deliveries_repository.dart';
+import '../../../services/location/location_service.dart';
 
 class ConfirmDeliveryUseCase {
   ConfirmDeliveryUseCase(this._repository, this._locationService);

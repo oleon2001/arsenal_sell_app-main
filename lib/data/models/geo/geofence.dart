@@ -7,6 +7,27 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 // part 'geofence.g.dart';
 
 class Geofence {
+  factory Geofence.fromJson(Map<String, dynamic> json) => Geofence(
+        id: json['id'],
+        companyId: json['companyId'],
+        ownerId: json['ownerId'],
+        radiusM: json['radiusM'] ?? 10,
+        centerLatitude: json['centerLatitude'],
+        centerLongitude: json['centerLongitude'],
+        name: json['name'],
+        description: json['description'],
+        isActive: json['isActive'] ?? true,
+        type: GeofenceType.values.firstWhere((e) => e.name == json['type'],
+            orElse: () => GeofenceType.customer),
+        entityId: json['entityId'],
+        metadata: json['metadata'],
+        createdAt: json['createdAt'] != null
+            ? DateTime.parse(json['createdAt'])
+            : null,
+        updatedAt: json['updatedAt'] != null
+            ? DateTime.parse(json['updatedAt'])
+            : null,
+      );
   const Geofence({
     required this.id,
     required this.companyId,
@@ -38,28 +59,6 @@ class Geofence {
   final Map<String, dynamic>? metadata;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-
-  factory Geofence.fromJson(Map<String, dynamic> json) => Geofence(
-        id: json['id'],
-        companyId: json['companyId'],
-        ownerId: json['ownerId'],
-        radiusM: json['radiusM'] ?? 10,
-        centerLatitude: json['centerLatitude'],
-        centerLongitude: json['centerLongitude'],
-        name: json['name'],
-        description: json['description'],
-        isActive: json['isActive'] ?? true,
-        type: GeofenceType.values.firstWhere((e) => e.name == json['type'],
-            orElse: () => GeofenceType.customer),
-        entityId: json['entityId'],
-        metadata: json['metadata'],
-        createdAt: json['createdAt'] != null
-            ? DateTime.parse(json['createdAt'])
-            : null,
-        updatedAt: json['updatedAt'] != null
-            ? DateTime.parse(json['updatedAt'])
-            : null,
-      );
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -93,6 +92,19 @@ enum GeofenceType {
 }
 
 class GeofenceEvent {
+  factory GeofenceEvent.fromJson(Map<String, dynamic> json) => GeofenceEvent(
+        id: json['id'],
+        geofenceId: json['geofenceId'],
+        userId: json['userId'],
+        eventType: GeofenceEventType.values
+            .firstWhere((e) => e.name == json['eventType']),
+        timestamp: DateTime.parse(json['timestamp']),
+        latitude: json['latitude'],
+        longitude: json['longitude'],
+        accuracy: json['accuracy'],
+        notes: json['notes'],
+        metadata: json['metadata'],
+      );
   const GeofenceEvent({
     required this.id,
     required this.geofenceId,
@@ -116,20 +128,6 @@ class GeofenceEvent {
   final double? accuracy;
   final String? notes;
   final Map<String, dynamic>? metadata;
-
-  factory GeofenceEvent.fromJson(Map<String, dynamic> json) => GeofenceEvent(
-        id: json['id'],
-        geofenceId: json['geofenceId'],
-        userId: json['userId'],
-        eventType: GeofenceEventType.values
-            .firstWhere((e) => e.name == json['eventType']),
-        timestamp: DateTime.parse(json['timestamp']),
-        latitude: json['latitude'],
-        longitude: json['longitude'],
-        accuracy: json['accuracy'],
-        notes: json['notes'],
-        metadata: json['metadata'],
-      );
 }
 
 enum GeofenceEventType {
@@ -142,6 +140,24 @@ enum GeofenceEventType {
 }
 
 class GeofenceStatus {
+  factory GeofenceStatus.fromJson(Map<String, dynamic> json) => GeofenceStatus(
+        geofenceId: json['geofenceId'],
+        userId: json['userId'],
+        isInside: json['isInside'],
+        lastEntered: json['lastEntered'] != null
+            ? DateTime.parse(json['lastEntered'])
+            : null,
+        lastExited: json['lastExited'] != null
+            ? DateTime.parse(json['lastExited'])
+            : null,
+        dwellTime: json['dwellTime'] != null
+            ? Duration(milliseconds: json['dwellTime'])
+            : null,
+        entryCount: json['entryCount'],
+        lastUpdated: json['lastUpdated'] != null
+            ? DateTime.parse(json['lastUpdated'])
+            : null,
+      );
   const GeofenceStatus({
     required this.geofenceId,
     required this.userId,
@@ -161,25 +177,6 @@ class GeofenceStatus {
   final Duration? dwellTime;
   final int entryCount;
   final DateTime? lastUpdated;
-
-  factory GeofenceStatus.fromJson(Map<String, dynamic> json) => GeofenceStatus(
-        geofenceId: json['geofenceId'],
-        userId: json['userId'],
-        isInside: json['isInside'],
-        lastEntered: json['lastEntered'] != null
-            ? DateTime.parse(json['lastEntered'])
-            : null,
-        lastExited: json['lastExited'] != null
-            ? DateTime.parse(json['lastExited'])
-            : null,
-        dwellTime: json['dwellTime'] != null
-            ? Duration(milliseconds: json['dwellTime'])
-            : null,
-        entryCount: json['entryCount'],
-        lastUpdated: json['lastUpdated'] != null
-            ? DateTime.parse(json['lastUpdated'])
-            : null,
-      );
 }
 
 // Extensions for Geofence
@@ -349,6 +346,10 @@ extension GeofenceEventTypeX on GeofenceEventType {
 
 // Helper classes
 class GeofenceBounds {
+  factory GeofenceBounds.fromJson(Map<String, dynamic> json) => GeofenceBounds(
+        northEast: GeofencePoint.fromJson(json['northEast']),
+        southWest: GeofencePoint.fromJson(json['southWest']),
+      );
   const GeofenceBounds({
     required this.northEast,
     required this.southWest,
@@ -356,14 +357,13 @@ class GeofenceBounds {
 
   final GeofencePoint northEast;
   final GeofencePoint southWest;
-
-  factory GeofenceBounds.fromJson(Map<String, dynamic> json) => GeofenceBounds(
-        northEast: GeofencePoint.fromJson(json['northEast']),
-        southWest: GeofencePoint.fromJson(json['southWest']),
-      );
 }
 
 class GeofencePoint {
+  factory GeofencePoint.fromJson(Map<String, dynamic> json) => GeofencePoint(
+        latitude: json['latitude'],
+        longitude: json['longitude'],
+      );
   const GeofencePoint({
     required this.latitude,
     required this.longitude,
@@ -371,11 +371,6 @@ class GeofencePoint {
 
   final double latitude;
   final double longitude;
-
-  factory GeofencePoint.fromJson(Map<String, dynamic> json) => GeofencePoint(
-        latitude: json['latitude'],
-        longitude: json['longitude'],
-      );
 }
 
 // Geofence utilities
@@ -407,7 +402,6 @@ class GeofenceUtils {
         centerLatitude: latitude,
         centerLongitude: longitude,
         name: customerName != null ? 'Geofence $customerName' : null,
-        type: GeofenceType.customer,
         entityId: customerId,
         createdAt: DateTime.now(),
       );

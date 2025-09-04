@@ -21,13 +21,15 @@ Payment _$PaymentFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$Payment {
   String get id => throw _privateConstructorUsedError;
+  String get customerId => throw _privateConstructorUsedError;
   String? get orderId => throw _privateConstructorUsedError;
-  String? get customerId => throw _privateConstructorUsedError;
-  String? get userId => throw _privateConstructorUsedError;
+  PaymentType get type => throw _privateConstructorUsedError;
   double get amount => throw _privateConstructorUsedError;
-  String? get method => throw _privateConstructorUsedError;
-  DateTime? get paidAt => throw _privateConstructorUsedError;
+  PaymentMethod? get method => throw _privateConstructorUsedError;
+  String? get reference => throw _privateConstructorUsedError;
   String? get notes => throw _privateConstructorUsedError;
+  DateTime? get paidAt => throw _privateConstructorUsedError;
+  String get status => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -41,13 +43,15 @@ abstract class $PaymentCopyWith<$Res> {
   @useResult
   $Res call(
       {String id,
+      String customerId,
       String? orderId,
-      String? customerId,
-      String? userId,
+      PaymentType type,
       double amount,
-      String? method,
+      PaymentMethod? method,
+      String? reference,
+      String? notes,
       DateTime? paidAt,
-      String? notes});
+      String status});
 }
 
 /// @nodoc
@@ -64,31 +68,33 @@ class _$PaymentCopyWithImpl<$Res, $Val extends Payment>
   @override
   $Res call({
     Object? id = null,
+    Object? customerId = null,
     Object? orderId = freezed,
-    Object? customerId = freezed,
-    Object? userId = freezed,
+    Object? type = null,
     Object? amount = null,
     Object? method = freezed,
-    Object? paidAt = freezed,
+    Object? reference = freezed,
     Object? notes = freezed,
+    Object? paidAt = freezed,
+    Object? status = null,
   }) {
     return _then(_value.copyWith(
       id: null == id
           ? _value.id
           : id // ignore: cast_nullable_to_non_nullable
               as String,
+      customerId: null == customerId
+          ? _value.customerId
+          : customerId // ignore: cast_nullable_to_non_nullable
+              as String,
       orderId: freezed == orderId
           ? _value.orderId
           : orderId // ignore: cast_nullable_to_non_nullable
               as String?,
-      customerId: freezed == customerId
-          ? _value.customerId
-          : customerId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      userId: freezed == userId
-          ? _value.userId
-          : userId // ignore: cast_nullable_to_non_nullable
-              as String?,
+      type: null == type
+          ? _value.type
+          : type // ignore: cast_nullable_to_non_nullable
+              as PaymentType,
       amount: null == amount
           ? _value.amount
           : amount // ignore: cast_nullable_to_non_nullable
@@ -96,15 +102,23 @@ class _$PaymentCopyWithImpl<$Res, $Val extends Payment>
       method: freezed == method
           ? _value.method
           : method // ignore: cast_nullable_to_non_nullable
+              as PaymentMethod?,
+      reference: freezed == reference
+          ? _value.reference
+          : reference // ignore: cast_nullable_to_non_nullable
+              as String?,
+      notes: freezed == notes
+          ? _value.notes
+          : notes // ignore: cast_nullable_to_non_nullable
               as String?,
       paidAt: freezed == paidAt
           ? _value.paidAt
           : paidAt // ignore: cast_nullable_to_non_nullable
               as DateTime?,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
+      status: null == status
+          ? _value.status
+          : status // ignore: cast_nullable_to_non_nullable
+              as String,
     ) as $Val);
   }
 }
@@ -118,13 +132,15 @@ abstract class _$$PaymentImplCopyWith<$Res> implements $PaymentCopyWith<$Res> {
   @useResult
   $Res call(
       {String id,
+      String customerId,
       String? orderId,
-      String? customerId,
-      String? userId,
+      PaymentType type,
       double amount,
-      String? method,
+      PaymentMethod? method,
+      String? reference,
+      String? notes,
       DateTime? paidAt,
-      String? notes});
+      String status});
 }
 
 /// @nodoc
@@ -139,31 +155,33 @@ class __$$PaymentImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? id = null,
+    Object? customerId = null,
     Object? orderId = freezed,
-    Object? customerId = freezed,
-    Object? userId = freezed,
+    Object? type = null,
     Object? amount = null,
     Object? method = freezed,
-    Object? paidAt = freezed,
+    Object? reference = freezed,
     Object? notes = freezed,
+    Object? paidAt = freezed,
+    Object? status = null,
   }) {
     return _then(_$PaymentImpl(
       id: null == id
           ? _value.id
           : id // ignore: cast_nullable_to_non_nullable
               as String,
+      customerId: null == customerId
+          ? _value.customerId
+          : customerId // ignore: cast_nullable_to_non_nullable
+              as String,
       orderId: freezed == orderId
           ? _value.orderId
           : orderId // ignore: cast_nullable_to_non_nullable
               as String?,
-      customerId: freezed == customerId
-          ? _value.customerId
-          : customerId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      userId: freezed == userId
-          ? _value.userId
-          : userId // ignore: cast_nullable_to_non_nullable
-              as String?,
+      type: null == type
+          ? _value.type
+          : type // ignore: cast_nullable_to_non_nullable
+              as PaymentType,
       amount: null == amount
           ? _value.amount
           : amount // ignore: cast_nullable_to_non_nullable
@@ -171,15 +189,23 @@ class __$$PaymentImplCopyWithImpl<$Res>
       method: freezed == method
           ? _value.method
           : method // ignore: cast_nullable_to_non_nullable
+              as PaymentMethod?,
+      reference: freezed == reference
+          ? _value.reference
+          : reference // ignore: cast_nullable_to_non_nullable
+              as String?,
+      notes: freezed == notes
+          ? _value.notes
+          : notes // ignore: cast_nullable_to_non_nullable
               as String?,
       paidAt: freezed == paidAt
           ? _value.paidAt
           : paidAt // ignore: cast_nullable_to_non_nullable
               as DateTime?,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
+      status: null == status
+          ? _value.status
+          : status // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }
@@ -189,13 +215,15 @@ class __$$PaymentImplCopyWithImpl<$Res>
 class _$PaymentImpl implements _Payment {
   const _$PaymentImpl(
       {required this.id,
+      required this.customerId,
       this.orderId,
-      this.customerId,
-      this.userId,
+      this.type = PaymentType.sale,
       required this.amount,
       this.method,
+      this.reference,
+      this.notes,
       this.paidAt,
-      this.notes});
+      this.status = 'PENDING'});
 
   factory _$PaymentImpl.fromJson(Map<String, dynamic> json) =>
       _$$PaymentImplFromJson(json);
@@ -203,23 +231,29 @@ class _$PaymentImpl implements _Payment {
   @override
   final String id;
   @override
+  final String customerId;
+  @override
   final String? orderId;
   @override
-  final String? customerId;
-  @override
-  final String? userId;
+  @JsonKey()
+  final PaymentType type;
   @override
   final double amount;
   @override
-  final String? method;
+  final PaymentMethod? method;
+  @override
+  final String? reference;
+  @override
+  final String? notes;
   @override
   final DateTime? paidAt;
   @override
-  final String? notes;
+  @JsonKey()
+  final String status;
 
   @override
   String toString() {
-    return 'Payment(id: $id, orderId: $orderId, customerId: $customerId, userId: $userId, amount: $amount, method: $method, paidAt: $paidAt, notes: $notes)';
+    return 'Payment(id: $id, customerId: $customerId, orderId: $orderId, type: $type, amount: $amount, method: $method, reference: $reference, notes: $notes, paidAt: $paidAt, status: $status)';
   }
 
   @override
@@ -228,20 +262,23 @@ class _$PaymentImpl implements _Payment {
         (other.runtimeType == runtimeType &&
             other is _$PaymentImpl &&
             (identical(other.id, id) || other.id == id) &&
-            (identical(other.orderId, orderId) || other.orderId == orderId) &&
             (identical(other.customerId, customerId) ||
                 other.customerId == customerId) &&
-            (identical(other.userId, userId) || other.userId == userId) &&
+            (identical(other.orderId, orderId) || other.orderId == orderId) &&
+            (identical(other.type, type) || other.type == type) &&
             (identical(other.amount, amount) || other.amount == amount) &&
             (identical(other.method, method) || other.method == method) &&
+            (identical(other.reference, reference) ||
+                other.reference == reference) &&
+            (identical(other.notes, notes) || other.notes == notes) &&
             (identical(other.paidAt, paidAt) || other.paidAt == paidAt) &&
-            (identical(other.notes, notes) || other.notes == notes));
+            (identical(other.status, status) || other.status == status));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, id, orderId, customerId, userId,
-      amount, method, paidAt, notes);
+  int get hashCode => Object.hash(runtimeType, id, customerId, orderId, type,
+      amount, method, reference, notes, paidAt, status);
 
   @JsonKey(ignore: true)
   @override
@@ -260,32 +297,38 @@ class _$PaymentImpl implements _Payment {
 abstract class _Payment implements Payment {
   const factory _Payment(
       {required final String id,
+      required final String customerId,
       final String? orderId,
-      final String? customerId,
-      final String? userId,
+      final PaymentType type,
       required final double amount,
-      final String? method,
+      final PaymentMethod? method,
+      final String? reference,
+      final String? notes,
       final DateTime? paidAt,
-      final String? notes}) = _$PaymentImpl;
+      final String status}) = _$PaymentImpl;
 
   factory _Payment.fromJson(Map<String, dynamic> json) = _$PaymentImpl.fromJson;
 
   @override
   String get id;
   @override
+  String get customerId;
+  @override
   String? get orderId;
   @override
-  String? get customerId;
-  @override
-  String? get userId;
+  PaymentType get type;
   @override
   double get amount;
   @override
-  String? get method;
+  PaymentMethod? get method;
+  @override
+  String? get reference;
+  @override
+  String? get notes;
   @override
   DateTime? get paidAt;
   @override
-  String? get notes;
+  String get status;
   @override
   @JsonKey(ignore: true)
   _$$PaymentImplCopyWith<_$PaymentImpl> get copyWith =>

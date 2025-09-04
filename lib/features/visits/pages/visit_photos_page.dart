@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/palette.dart';
+import '../../../config/logger.dart';
 import '../../../services/media/camera_service.dart';
+import '../../../services/media/visit_photo_service.dart';
 import '../bloc/visits_cubit.dart';
 
 class VisitPhotosPage extends StatefulWidget {
@@ -19,7 +21,31 @@ class VisitPhotosPage extends StatefulWidget {
 
 class _VisitPhotosPageState extends State<VisitPhotosPage> {
   final List<File> _capturedPhotos = [];
-  final bool _isUploading = false;
+  bool _isUploading = false;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingPhotos();
+  }
+
+  /// Carga fotos existentes de la visita
+  Future<void> _loadExistingPhotos() async {
+    try {
+      setState(() => _isLoading = true);
+
+      // TODO: Cargar fotos existentes desde el repositorio
+      // final existingPhotos = await context.read<VisitsCubit>().getVisitPhotos(widget.visitId);
+      // setState(() {
+      //   _capturedPhotos.addAll(existingPhotos);
+      // });
+    } catch (e) {
+      _showError('Error al cargar fotos existentes: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -41,68 +67,70 @@ class _VisitPhotosPageState extends State<VisitPhotosPage> {
             ),
           ],
         ),
-        body: Column(
-          children: [
-            // Instructions
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              color: AppPalette.info.withOpacity(0.1),
-              child: const Text(
-                'Toma fotos como evidencia de tu visita. Mínimo 1 foto requerida.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppPalette.info,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-
-            // Photo grid
-            Expanded(
-              child: _capturedPhotos.isEmpty
-                  ? _buildEmptyState()
-                  : _buildPhotoGrid(),
-            ),
-
-            // Camera buttons
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
                 children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _isUploading ? null : _takePicture,
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Tomar Foto'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppPalette.primary,
+                  // Instructions
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    color: AppPalette.info.withOpacity(0.1),
+                    child: const Text(
+                      'Toma fotos como evidencia de tu visita. Mínimo 1 foto requerida.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppPalette.info,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(width: 16),
+
+                  // Photo grid
                   Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _isUploading ? null : _pickFromGallery,
-                      icon: const Icon(Icons.photo_library),
-                      label: const Text('Galería'),
+                    child: _capturedPhotos.isEmpty
+                        ? _buildEmptyState()
+                        : _buildPhotoGrid(),
+                  ),
+
+                  // Camera buttons
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, -2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _isUploading ? null : _takePicture,
+                            icon: const Icon(Icons.camera_alt),
+                            label: const Text('Tomar Foto'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppPalette.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isUploading ? null : _pickFromGallery,
+                            icon: const Icon(Icons.photo_library),
+                            label: const Text('Galería'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
       );
 
   Widget _buildEmptyState() => const Center(
@@ -141,7 +169,6 @@ class _VisitPhotosPageState extends State<VisitPhotosPage> {
           crossAxisCount: 2,
           crossAxisSpacing: 8,
           mainAxisSpacing: 8,
-          childAspectRatio: 1,
         ),
         itemCount: _capturedPhotos.length,
         itemBuilder: (context, index) {
@@ -200,34 +227,65 @@ class _VisitPhotosPageState extends State<VisitPhotosPage> {
 
   Future<void> _takePicture() async {
     try {
+      setState(() => _isUploading = true);
+
       final photo = await CameraService.takePicture();
       if (photo != null) {
         setState(() {
           _capturedPhotos.add(photo);
         });
+
+        // TODO: Guardar foto en el repositorio de visitas
+        // await context.read<VisitsCubit>().addVisitPhoto(widget.visitId, photo);
+
+        _showSuccess('Foto capturada exitosamente');
       }
     } catch (e) {
       _showError('Error al tomar foto: $e');
+    } finally {
+      setState(() => _isUploading = false);
     }
   }
 
   Future<void> _pickFromGallery() async {
     try {
+      setState(() => _isUploading = true);
+
       final photos = await CameraService.pickMultipleFromGallery();
       if (photos.isNotEmpty) {
         setState(() {
           _capturedPhotos.addAll(photos);
         });
+
+        // TODO: Guardar fotos en el repositorio de visitas
+        // for (final photo in photos) {
+        //   await context.read<VisitsCubit>().addVisitPhoto(widget.visitId, photo);
+        // }
+
+        _showSuccess('${photos.length} foto(s) seleccionada(s)');
       }
     } catch (e) {
       _showError('Error al seleccionar fotos: $e');
+    } finally {
+      setState(() => _isUploading = false);
     }
   }
 
   void _removePhoto(int index) {
-    setState(() {
-      _capturedPhotos.removeAt(index);
-    });
+    try {
+      final photo = _capturedPhotos[index];
+
+      setState(() {
+        _capturedPhotos.removeAt(index);
+      });
+
+      // TODO: Eliminar foto del repositorio
+      // context.read<VisitsCubit>().removeVisitPhoto(widget.visitId, photo.path);
+
+      _showSuccess('Foto eliminada');
+    } catch (e) {
+      _showError('Error al eliminar foto: $e');
+    }
   }
 
   void _viewPhoto(File photo) {
@@ -243,6 +301,18 @@ class _VisitPhotosPageState extends State<VisitPhotosPage> {
       SnackBar(
         content: Text(message),
         backgroundColor: AppPalette.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppPalette.success,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -257,11 +327,33 @@ class PhotoViewPage extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
+          title: const Text('Vista de Foto'),
         ),
         body: Container(
           color: Colors.black,
           child: Center(
-            child: Image.file(photo),
+            child: InteractiveViewer(
+              child: Image.file(
+                photo,
+                errorBuilder: (context, error, stackTrace) => const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: Colors.white,
+                        size: 64,
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Error al cargar la imagen',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       );

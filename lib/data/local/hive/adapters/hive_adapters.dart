@@ -1,11 +1,12 @@
 import 'package:hive_flutter/hive_flutter.dart';
+
 import '../../../models/auth/user_profile.dart';
 import '../../../models/customers/customer.dart';
-import '../../../models/visits/visit.dart';
+import '../../../models/geo/geofence.dart';
+import '../../../models/geo/location_sample.dart';
 import '../../../models/sales/order.dart';
 import '../../../models/sales/product.dart';
-import '../../../models/geo/location_sample.dart';
-import '../../../models/geo/geofence.dart';
+import '../../../models/visits/visit.dart';
 
 class HiveAdapters {
   static Future<void> registerAdapters() async {

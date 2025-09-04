@@ -1,121 +1,236 @@
-import 'package:connectivity_plus/connectivity_plus.dart';
-import '../models/customers/customer.dart';
-import '../local/drift/db.dart';
-import '../remote/supabase_client.dart';
 import '../../config/logger.dart';
-
-class PaymentModel {
-  PaymentModel({
-    required this.id,
-    this.orderId,
-    this.customerId,
-    this.userId,
-    required this.amount,
-    this.method,
-    required this.paidAt,
-    this.notes,
-    required this.status,
-    this.customer,
-  });
-  final String id;
-  final String? orderId;
-  final String? customerId;
-  final String? userId;
-  final double amount;
-  final String? method;
-  final DateTime paidAt;
-  final String? notes;
-  final String status;
-  final Customer? customer;
-}
+import '../models/payments/payment.dart';
+import '../remote/supabase_client.dart';
 
 class PaymentsRepository {
-  final DatabaseHelper _db = DatabaseHelper.instance;
   final SupabaseService _supabase = SupabaseService();
 
-  Future<List<PaymentModel>> getPayments({bool forceSync = false}) async {
+  /// Obtener todos los pagos de una orden
+  Future<List<Payment>> getPaymentsByOrder(String orderId) async {
     try {
-      final connectivity = await Connectivity().checkConnectivity();
-      final isOnline = connectivity != ConnectivityResult.none;
-
-      if (isOnline && forceSync) {
-        await _syncPaymentsFromServer();
-      }
-
-      // For now, return mock data
-      return [
-        PaymentModel(
-          id: '00000000-0000-0000-0000-000000000001',
-          customerId: '00000000-0000-0000-0000-000000000002',
-          amount: 2500,
-          method: 'EFECTIVO',
-          paidAt: DateTime.now().subtract(const Duration(hours: 1)),
-          status: 'PENDING',
-          customer: const Customer(
-            id: '00000000-0000-0000-0000-000000000002',
-            companyId: '705abd4b-c5a7-4a6b-be9c-e2da93df3987',
-            name: 'Cliente Ejemplo 1',
-          ),
-        ),
-        PaymentModel(
-          id: '00000000-0000-0000-0000-000000000003',
-          customerId: '00000000-0000-0000-0000-000000000004',
-          amount: 1800,
-          method: 'TARJETA',
-          paidAt: DateTime.now().subtract(const Duration(days: 1)),
-          status: 'COMPLETED',
-          customer: const Customer(
-            id: '00000000-0000-0000-0000-000000000004',
-            companyId: '705abd4b-c5a7-4a6b-be9c-e2da93df3987',
-            name: 'Cliente Ejemplo 2',
-          ),
-        ),
-      ];
+      logger.i('🔍 Cargando pagos para orden: $orderId');
+      final payments = await _supabase.getPaymentsByOrder(orderId);
+      logger.i('✅ ${payments.length} pagos cargados');
+      return payments;
     } catch (e) {
-      logger.e('Get payments error: $e');
-      return [];
-    }
-  }
-
-  Future<PaymentModel> registerPayment(PaymentModel payment) async {
-    try {
-      // TODO: Save locally first, then sync
-
-      final connectivity = await Connectivity().checkConnectivity();
-      if (connectivity != ConnectivityResult.none) {
-        await _syncPaymentToServer(payment);
-      }
-
-      return payment;
-    } catch (e) {
-      logger.e('Register payment error: $e');
+      logger.e('❌ Error cargando pagos: $e');
       rethrow;
     }
   }
 
-  Future<List<PaymentModel>> getPendingPayments() async {
+  /// Obtener todos los pagos de un cliente
+  Future<List<Payment>> getPaymentsByCustomer(String customerId) async {
     try {
-      final payments = await getPayments();
-      return payments.where((p) => p.status == 'PENDING').toList();
+      logger.i('🔍 Cargando pagos para cliente: $customerId');
+      final payments = await _supabase.getPaymentsByCustomer(customerId);
+      logger.i('✅ ${payments.length} pagos cargados');
+      return payments;
     } catch (e) {
-      logger.e('Get pending payments error: $e');
-      return [];
+      logger.e('❌ Error cargando pagos: $e');
+      rethrow;
     }
   }
 
-  Future<void> _syncPaymentsFromServer() async {
+  /// Obtener métodos de pago disponibles
+  Future<List<PaymentMethod>> getPaymentMethods() async {
     try {
-      // TODO: Implement sync from server
+      logger.i('🔍 Cargando métodos de pago...');
+      final methods = await _supabase.getPaymentMethods();
+      logger.i('✅ ${methods.length} métodos de pago cargados');
+      return methods;
     } catch (e) {
-      logger.e('Sync payments from server error: $e');
+      logger.e('❌ Error cargando métodos de pago: $e');
+      rethrow;
     }
   }
 
-  Future<void> _syncPaymentToServer(PaymentModel payment) async {
+  /// Crear nuevo pago
+  Future<Payment> createPayment(Payment payment) async {
     try {
-      // TODO: Implement sync to server
+      logger.i('🔍 Creando pago: \$${payment.amount}');
+      final createdPayment = await _supabase.createPayment(payment);
+      logger.i('✅ Pago creado: ${createdPayment.id}');
+      return createdPayment;
     } catch (e) {
-      logger.e('Sync payment to server error: $e');
+      logger.e('❌ Error creando pago: $e');
+      rethrow;
     }
+  }
+
+  /// Actualizar pago
+  Future<Payment> updatePayment(Payment payment) async {
+    try {
+      logger.i('🔍 Actualizando pago: ${payment.id}');
+      final updatedPayment = await _supabase.updatePayment(payment);
+      logger.i('✅ Pago actualizado: ${updatedPayment.id}');
+      return updatedPayment;
+    } catch (e) {
+      logger.e('❌ Error actualizando pago: $e');
+      rethrow;
+    }
+  }
+
+  /// Marcar pago como completado
+  Future<Payment> markPaymentAsCompleted(String paymentId,
+      {String? reference}) async {
+    try {
+      logger.i('🔍 Marcando pago como completado: $paymentId');
+      final payment = await _supabase.markPaymentAsCompleted(paymentId,
+          reference: reference);
+      logger.i('✅ Pago marcado como completado: $paymentId');
+      return payment;
+    } catch (e) {
+      logger.e('❌ Error marcando pago como completado: $e');
+      rethrow;
+    }
+  }
+
+  /// Marcar pago como fallido
+  Future<Payment> markPaymentAsFailed(String paymentId, {String? notes}) async {
+    try {
+      logger.i('🔍 Marcando pago como fallido: $paymentId');
+      final payment =
+          await _supabase.markPaymentAsFailed(paymentId, notes: notes);
+      logger.i('✅ Pago marcado como fallido: $paymentId');
+      return payment;
+    } catch (e) {
+      logger.e('❌ Error marcando pago como fallido: $e');
+      rethrow;
+    }
+  }
+
+  /// Obtener resumen de pagos de una orden
+  Future<PaymentSummary> getPaymentSummary(String orderId) async {
+    try {
+      logger.i('🔍 Obteniendo resumen de pagos para orden: $orderId');
+      final payments = await getPaymentsByOrder(orderId);
+
+      final totalAmount =
+          payments.fold(0.0, (sum, payment) => sum + payment.amount);
+      final completedAmount = payments
+          .where((p) => p.isCompleted)
+          .fold(0.0, (sum, payment) => sum + payment.amount);
+      final pendingAmount = totalAmount - completedAmount;
+
+      final summary = PaymentSummary(
+        orderId: orderId,
+        totalAmount: totalAmount,
+        completedAmount: completedAmount,
+        pendingAmount: pendingAmount,
+        payments: payments,
+        isFullyPaid: pendingAmount <= 0 && payments.isNotEmpty,
+      );
+
+      logger.i(
+          '✅ Resumen de pagos: \$${completedAmount.toStringAsFixed(2)} / \$${totalAmount.toStringAsFixed(2)}');
+      return summary;
+    } catch (e) {
+      logger.e('❌ Error obteniendo resumen de pagos: $e');
+      rethrow;
+    }
+  }
+
+  /// Obtener todos los pagos (método requerido por PaymentsCubit)
+  Future<List<Payment>> getPayments({bool forceSync = false}) async {
+    try {
+      logger.i('🔍 Cargando todos los pagos...');
+      // Por ahora, obtener pagos de todos los clientes
+      // TODO: Implementar lógica específica según el contexto
+      final payments = await _supabase.getPaymentsByCustomer('all');
+      logger.i('✅ ${payments.length} pagos cargados');
+      return payments;
+    } catch (e) {
+      logger.e('❌ Error cargando pagos: $e');
+      rethrow;
+    }
+  }
+
+  /// Obtener pagos pendientes (método requerido por PaymentsCubit)
+  Future<List<Payment>> getPendingPayments() async {
+    try {
+      logger.i('🔍 Cargando pagos pendientes...');
+      final allPayments = await getPayments();
+      final pendingPayments = allPayments.where((p) => p.isPending).toList();
+      logger.i('✅ ${pendingPayments.length} pagos pendientes encontrados');
+      return pendingPayments;
+    } catch (e) {
+      logger.e('❌ Error cargando pagos pendientes: $e');
+      rethrow;
+    }
+  }
+
+  /// Registrar nuevo pago (método requerido por PaymentsCubit)
+  Future<Payment> registerPayment({
+    required String customerId,
+    String? orderId,
+    required double amount,
+    required PaymentMethod paymentMethod,
+    String? reference,
+    String? notes,
+  }) async {
+    try {
+      logger
+          .i('🔍 Registrando nuevo pago: \$${amount} para cliente $customerId');
+      final payment = Payment(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        orderId: orderId ?? 'temp_order_id',
+        customerId: customerId,
+        amount: amount,
+        paymentMethod: paymentMethod,
+        status: PaymentStatus.pending,
+        reference: reference,
+        notes: notes,
+        createdAt: DateTime.now(),
+      );
+
+      final createdPayment = await createPayment(payment);
+      logger.i('✅ Pago registrado: ${createdPayment.id}');
+      return createdPayment;
+    } catch (e) {
+      logger.e('❌ Error registrando pago: $e');
+      rethrow;
+    }
+  }
+}
+
+/// Clase helper para resumen de pagos
+class PaymentSummary {
+  final String orderId;
+  final double totalAmount;
+  final double completedAmount;
+  final double pendingAmount;
+  final List<Payment> payments;
+  final bool isFullyPaid;
+
+  PaymentSummary({
+    required this.orderId,
+    required this.totalAmount,
+    required this.completedAmount,
+    required this.pendingAmount,
+    required this.payments,
+    required this.isFullyPaid,
+  });
+
+  /// Obtener porcentaje de pago completado
+  double get completionPercentage {
+    if (totalAmount == 0) return 0.0;
+    return (completedAmount / totalAmount) * 100;
+  }
+
+  /// Obtener monto total formateado
+  String get formattedTotalAmount => '\$${totalAmount.toStringAsFixed(2)}';
+
+  /// Obtener monto completado formateado
+  String get formattedCompletedAmount =>
+      '\$${completedAmount.toStringAsFixed(2)}';
+
+  /// Obtener monto pendiente formateado
+  String get formattedPendingAmount => '\$${pendingAmount.toStringAsFixed(2)}';
+
+  /// Obtener estado del pago
+  String get paymentStatus {
+    if (isFullyPaid) return 'Pagado';
+    if (completedAmount > 0) return 'Pago Parcial';
+    return 'Pendiente';
   }
 }

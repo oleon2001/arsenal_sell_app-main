@@ -17,6 +17,7 @@ import '../features/payments/pages/payments_page.dart';
 import '../features/supervisor/pages/supervisor_dashboard_page.dart';
 import '../features/visits/pages/visit_checkin_page.dart';
 import '../features/visits/pages/visit_forms_page.dart';
+import '../features/visits/pages/visit_history_page.dart';
 import '../features/visits/pages/visit_photos_page.dart';
 import '../features/visits/pages/visit_signature_page.dart';
 
@@ -131,6 +132,12 @@ class AppRouter {
             path: '/visit/forms/:visitId',
             builder: (context, state) => VisitFormsPage(
               visitId: state.pathParameters['visitId']!,
+            ),
+          ),
+          GoRoute(
+            path: '/visit/history/:customerId',
+            builder: (context, state) => VisitHistoryPage(
+              customerId: state.pathParameters['customerId']!,
             ),
           ),
           GoRoute(

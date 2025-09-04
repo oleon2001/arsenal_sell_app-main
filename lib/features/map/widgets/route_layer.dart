@@ -41,7 +41,7 @@ class RouteLayerService {
       points: routePoints,
       color: routeColor ?? AppPalette.primary,
       width: 4,
-      patterns: [],
+      patterns: const [],
     ));
 
     // Add segment polylines with different colors for completed/pending
@@ -63,7 +63,7 @@ class RouteLayerService {
         points: segment,
         color: segmentColor,
         width: 3,
-        patterns: [],
+        patterns: const [],
       ));
     }
 
@@ -173,7 +173,7 @@ class RouteLayerService {
       points: allPoints,
       color: routeColor ?? AppPalette.success,
       width: 4,
-      patterns: [],
+      patterns: const [],
     ));
 
     return polylines;
@@ -221,7 +221,7 @@ class RouteLayerService {
     final canvas = Canvas(pictureRecorder);
 
     Color backgroundColor;
-    final Color textColor = Colors.white;
+    const Color textColor = Colors.white;
 
     if (isCompleted) {
       backgroundColor = AppPalette.success;
@@ -303,7 +303,7 @@ class RouteLayerService {
     }
 
     double totalDistance = 0;
-    final int completedStops = 0;
+    const int completedStops = 0;
     final int pendingStops = validStops.length;
 
     // Calculate distances between consecutive stops
@@ -471,7 +471,8 @@ class RouteInfoWidget extends StatelessWidget {
                 LinearProgressIndicator(
                   value: statistics.completionPercentage / 100,
                   backgroundColor: AppPalette.textSecondary.withOpacity(0.3),
-                  valueColor: AlwaysStoppedAnimation<Color>(AppPalette.success),
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(AppPalette.success),
                 ),
                 const SizedBox(height: 8),
                 Text(

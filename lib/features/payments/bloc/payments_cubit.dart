@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import '../../../data/repositories/payments_repository.dart';
-import '../../../config/logger.dart';
 
-part 'payments_state.dart';
+import '../../../config/logger.dart';
+import '../../../data/repositories/payments_repository.dart';
+import '../../../data/models/payments/payment.dart';
+
 part 'payments_cubit.freezed.dart';
+part 'payments_state.dart';
 
 class PaymentsCubit extends Cubit<PaymentsState> {
   PaymentsCubit(this._repository) : super(const PaymentsState.initial());
@@ -35,28 +37,24 @@ class PaymentsCubit extends Cubit<PaymentsState> {
   }
 
   Future<void> registerPayment({
-    required String? customerId,
+    required String customerId,
     required double amount,
-    required String method,
+    PaymentMethod? method,
     String? orderId,
     String? notes,
+    String? reference,
   }) async {
     try {
       emit(const PaymentsState.processing());
 
-      final payment = PaymentModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+      final registeredPayment = await _repository.registerPayment(
         customerId: customerId,
         orderId: orderId,
-        userId: 'current_user_id', // TODO: Get from auth
         amount: amount,
-        method: method,
-        paidAt: DateTime.now(),
+        paymentMethod: method ?? PaymentMethod(id: '1', name: 'Efectivo'),
+        reference: reference,
         notes: notes,
-        status: 'COMPLETED',
       );
-
-      final registeredPayment = await _repository.registerPayment(payment);
 
       // Update the payments list
       final currentState = state;
@@ -79,7 +77,7 @@ class PaymentsCubit extends Cubit<PaymentsState> {
   Future<void> processPayment({
     required String paymentId,
     required double receivedAmount,
-    required String method,
+    required PaymentMethod method,
     String? notes,
   }) async {
     try {
@@ -87,7 +85,7 @@ class PaymentsCubit extends Cubit<PaymentsState> {
 
       // Find the payment to process
       final currentState = state;
-      PaymentModel? paymentToProcess;
+      Payment? paymentToProcess;
 
       if (currentState is PaymentsPendingLoaded) {
         paymentToProcess =
@@ -99,20 +97,13 @@ class PaymentsCubit extends Cubit<PaymentsState> {
       }
 
       // Create processed payment
-      final processedPayment = PaymentModel(
-        id: paymentToProcess.id,
+      final processedPayment = await _repository.registerPayment(
         customerId: paymentToProcess.customerId,
         orderId: paymentToProcess.orderId,
-        userId: paymentToProcess.userId,
         amount: receivedAmount,
-        method: method,
-        paidAt: DateTime.now(),
+        paymentMethod: method,
         notes: notes,
-        status: 'COMPLETED',
-        customer: paymentToProcess.customer,
       );
-
-      await _repository.registerPayment(processedPayment);
 
       emit(PaymentsState.paymentProcessed(
         processedPayment,
@@ -138,10 +129,11 @@ class PaymentsCubit extends Cubit<PaymentsState> {
 
         final filteredPayments = currentState.payments.where((payment) {
           final searchFields = [
-            payment.customer?.name ?? '',
-            payment.method ?? '',
+            payment.customerId,
+            payment.paymentMethod.name,
             payment.amount.toString(),
             payment.notes ?? '',
+            payment.reference ?? '',
           ];
 
           return searchFields.any(
@@ -155,35 +147,23 @@ class PaymentsCubit extends Cubit<PaymentsState> {
     }
   }
 
-  Future<void> filterPaymentsByMethod(String method) async {
+  Future<void> filterPaymentsByMethod(PaymentMethod method) async {
     try {
       final currentState = state;
       if (currentState is PaymentsLoaded) {
         final filteredPayments = currentState.payments
-            .where((payment) => payment.method == method)
+            .where((payment) => payment.paymentMethod.id == method.id)
             .toList();
 
-        emit(PaymentsState.filtered(filteredPayments, method));
+        emit(PaymentsState.filtered(filteredPayments, method.name));
       }
     } catch (e) {
       logger.e('Filter payments by method error: $e');
     }
   }
 
-  Future<void> filterPaymentsByStatus(String status) async {
-    try {
-      final currentState = state;
-      if (currentState is PaymentsLoaded) {
-        final filteredPayments = currentState.payments
-            .where((payment) => payment.status == status)
-            .toList();
-
-        emit(PaymentsState.filtered(filteredPayments, status));
-      }
-    } catch (e) {
-      logger.e('Filter payments by status error: $e');
-    }
-  }
+  // PaymentType ya no existe en el nuevo modelo, este método se puede eliminar
+  // o adaptar según necesidades específicas
 
   Future<void> filterPaymentsByDateRange({
     required DateTime startDate,
@@ -194,8 +174,10 @@ class PaymentsCubit extends Cubit<PaymentsState> {
       if (currentState is PaymentsLoaded) {
         final filteredPayments = currentState.payments
             .where((payment) =>
-                payment.paidAt.isAfter(startDate) &&
-                payment.paidAt.isBefore(endDate.add(const Duration(days: 1))))
+                payment.createdAt != null &&
+                payment.createdAt!.isAfter(startDate) &&
+                payment.createdAt!
+                    .isBefore(endDate.add(const Duration(days: 1))))
             .toList();
 
         emit(PaymentsState.filtered(
@@ -228,8 +210,10 @@ class PaymentsCubit extends Cubit<PaymentsState> {
         // Filter payments by date range
         final payments = currentState.payments
             .where((payment) =>
-                payment.paidAt.isAfter(startDate) &&
-                payment.paidAt.isBefore(endDate.add(const Duration(days: 1))))
+                payment.createdAt != null &&
+                payment.createdAt!.isAfter(startDate) &&
+                payment.createdAt!
+                    .isBefore(endDate.add(const Duration(days: 1))))
             .toList();
 
         // Calculate report data
@@ -238,7 +222,7 @@ class PaymentsCubit extends Cubit<PaymentsState> {
 
         final paymentsByMethod = <String, PaymentMethodSummary>{};
         for (final payment in payments) {
-          final method = payment.method ?? 'UNKNOWN';
+          final method = payment.paymentMethod.name;
           if (paymentsByMethod.containsKey(method)) {
             paymentsByMethod[method] = paymentsByMethod[method]!.copyWith(
               count: paymentsByMethod[method]!.count + 1,
@@ -272,7 +256,7 @@ class PaymentsCubit extends Cubit<PaymentsState> {
   }
 
   List<DailyPaymentSummary> _calculateDailyPayments(
-    List<PaymentModel> payments,
+    List<Payment> payments,
     DateTime startDate,
     DateTime endDate,
   ) {
@@ -293,17 +277,19 @@ class PaymentsCubit extends Cubit<PaymentsState> {
 
     // Add actual payments
     for (final payment in payments) {
-      final dateKey = DateTime(
-        payment.paidAt.year,
-        payment.paidAt.month,
-        payment.paidAt.day,
-      );
-
-      if (dailyPayments.containsKey(dateKey)) {
-        dailyPayments[dateKey] = dailyPayments[dateKey]!.copyWith(
-          count: dailyPayments[dateKey]!.count + 1,
-          amount: dailyPayments[dateKey]!.amount + payment.amount,
+      if (payment.createdAt != null) {
+        final dateKey = DateTime(
+          payment.createdAt!.year,
+          payment.createdAt!.month,
+          payment.createdAt!.day,
         );
+
+        if (dailyPayments.containsKey(dateKey)) {
+          dailyPayments[dateKey] = dailyPayments[dateKey]!.copyWith(
+            count: dailyPayments[dateKey]!.count + 1,
+            amount: dailyPayments[dateKey]!.amount + payment.amount,
+          );
+        }
       }
     }
 

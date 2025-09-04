@@ -160,9 +160,9 @@ class DeliveryCard extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    Text(
+                    const Text(
                       'Pedido #12345',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppPalette.textSecondary,
                       ),
@@ -172,18 +172,18 @@ class DeliveryCard extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 // Customer info
-                Row(
+                const Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.business,
                       size: 16,
                       color: AppPalette.textSecondary,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Tienda Ejemplo',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
@@ -194,18 +194,18 @@ class DeliveryCard extends StatelessWidget {
                 const SizedBox(height: 8),
 
                 // Address
-                Row(
+                const Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on,
                       size: 16,
                       color: AppPalette.textSecondary,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Calle Ejemplo 123, Colonia, Ciudad',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           color: AppPalette.textSecondary,
                         ),
@@ -225,7 +225,7 @@ class DeliveryCard extends StatelessWidget {
                         color: AppPalette.primary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Text(
+                      child: const Text(
                         '5 productos',
                         style: TextStyle(
                           fontSize: 12,
@@ -234,9 +234,9 @@ class DeliveryCard extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    Text(
-                      '\$1,250.00',
-                      style: const TextStyle(
+                    const Text(
+                      r'$1,250.00',
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppPalette.primary,
@@ -314,12 +314,12 @@ class DeliveryDetailsSheet extends StatelessWidget {
                     _buildInfoSection('Pedido', [
                       _buildInfoRow('Número', '#12345'),
                       _buildInfoRow('Fecha', '07/08/2025'),
-                      _buildInfoRow('Total', '\$1,250.00'),
+                      _buildInfoRow('Total', r'$1,250.00'),
                     ]),
                     _buildInfoSection('Productos', [
-                      _buildProductRow('Producto A', 2, '\$500.00'),
-                      _buildProductRow('Producto B', 1, '\$300.00'),
-                      _buildProductRow('Producto C', 3, '\$450.00'),
+                      _buildProductRow('Producto A', 2, r'$500.00'),
+                      _buildProductRow('Producto B', 1, r'$300.00'),
+                      _buildProductRow('Producto C', 3, r'$450.00'),
                     ]),
                   ],
                 ),

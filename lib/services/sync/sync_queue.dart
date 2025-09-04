@@ -1,13 +1,14 @@
 import 'dart:async';
-import 'dart:convert';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
+
+import '../../config/app_constants.dart';
+import '../../config/logger.dart';
 import '../../data/local/hive/boxes.dart';
 import '../../data/repositories/customers_repository.dart';
-import '../../data/repositories/visits_repository.dart';
 import '../../data/repositories/orders_repository.dart';
 import '../../data/repositories/tracking_repository.dart';
-import '../../config/logger.dart';
-import '../../config/app_constants.dart';
+import '../../data/repositories/visits_repository.dart';
 
 enum SyncItemType { customer, visit, order, tracking }
 

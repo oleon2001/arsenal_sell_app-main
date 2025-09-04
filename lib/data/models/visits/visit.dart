@@ -26,6 +26,39 @@ enum VisitPurpose {
 
 // Converted from @freezed to regular class
 class Visit {
+  factory Visit.fromJson(Map<String, dynamic> json) => Visit(
+        id: json['id'],
+        companyId: json['companyId'],
+        customerId: json['customerId'],
+        userId: json['userId'],
+        purpose:
+            VisitPurpose.values.firstWhere((e) => e.name == json['purpose']),
+        startedAt: json['startedAt'] != null
+            ? DateTime.parse(json['startedAt'])
+            : null,
+        finishedAt: json['finishedAt'] != null
+            ? DateTime.parse(json['finishedAt'])
+            : null,
+        checkinLatitude: json['checkinLatitude'],
+        checkinLongitude: json['checkinLongitude'],
+        checkoutLatitude: json['checkoutLatitude'],
+        checkoutLongitude: json['checkoutLongitude'],
+        checkinAccuracyM: json['checkinAccuracyM'],
+        checkoutAccuracyM: json['checkoutAccuracyM'],
+        distanceM: json['distanceM'],
+        notes: json['notes'],
+        isSynced: json['isSynced'] ?? false,
+        customer: json['customer'] != null
+            ? Customer.fromJson(json['customer'])
+            : null,
+        photos: (json['photos'] as List?)
+                ?.map((e) => VisitPhoto.fromJson(e))
+                .toList() ??
+            [],
+        signature: json['signature'] != null
+            ? VisitSignature.fromJson(json['signature'])
+            : null,
+      );
   const Visit({
     required this.id,
     required this.companyId,
@@ -67,40 +100,6 @@ class Visit {
   final Customer? customer;
   final List<VisitPhoto> photos;
   final VisitSignature? signature;
-
-  factory Visit.fromJson(Map<String, dynamic> json) => Visit(
-        id: json['id'],
-        companyId: json['companyId'],
-        customerId: json['customerId'],
-        userId: json['userId'],
-        purpose:
-            VisitPurpose.values.firstWhere((e) => e.name == json['purpose']),
-        startedAt: json['startedAt'] != null
-            ? DateTime.parse(json['startedAt'])
-            : null,
-        finishedAt: json['finishedAt'] != null
-            ? DateTime.parse(json['finishedAt'])
-            : null,
-        checkinLatitude: json['checkinLatitude'],
-        checkinLongitude: json['checkinLongitude'],
-        checkoutLatitude: json['checkoutLatitude'],
-        checkoutLongitude: json['checkoutLongitude'],
-        checkinAccuracyM: json['checkinAccuracyM'],
-        checkoutAccuracyM: json['checkoutAccuracyM'],
-        distanceM: json['distanceM'],
-        notes: json['notes'],
-        isSynced: json['isSynced'] ?? false,
-        customer: json['customer'] != null
-            ? Customer.fromJson(json['customer'])
-            : null,
-        photos: (json['photos'] as List?)
-                ?.map((e) => VisitPhoto.fromJson(e))
-                .toList() ??
-            [],
-        signature: json['signature'] != null
-            ? VisitSignature.fromJson(json['signature'])
-            : null,
-      );
 
   Map<String, dynamic> toJson() => {
         'id': id,

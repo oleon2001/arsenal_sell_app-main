@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/palette.dart';
 import '../../../data/models/sales/order.dart';
+import '../../../data/models/sales/product.dart';
+import '../../../data/repositories/products_repository.dart';
 import '../bloc/order_cubit.dart';
 
 class CartPage extends StatelessWidget {
@@ -18,20 +20,17 @@ class CartPage extends StatelessWidget {
           title: const Text('Carrito de Compras'),
           actions: [
             BlocBuilder<OrderCubit, OrderState>(
-              builder: (context, state) {
-                return TextButton(
-                  onPressed: state.maybeWhen(
-                    editing: (order) => order.items.isNotEmpty
-                        ? () => _saveOrder(context)
-                        : null,
-                    orElse: () => null,
-                  ),
-                  child: const Text(
-                    'Guardar',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                );
-              },
+              builder: (context, state) => TextButton(
+                onPressed: state.maybeWhen(
+                  editing: (order) =>
+                      order.items.isNotEmpty ? () => _saveOrder(context) : null,
+                  orElse: () => null,
+                ),
+                child: const Text(
+                  'Guardar',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
             ),
           ],
         ),
@@ -57,58 +56,54 @@ class CartPage extends StatelessWidget {
               },
             );
           },
-          builder: (context, state) {
-            return state.when(
-              initial: () {
-                // Auto-create new order
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  context.read<OrderCubit>().createNewOrder(customerId);
-                });
-                return const Center(child: CircularProgressIndicator());
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              editing: (order) => _buildCartContent(context, order),
-              saving: () => const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Guardando pedido...'),
-                  ],
-                ),
+          builder: (context, state) => state.when(
+            initial: () {
+              // Auto-create new order
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                context.read<OrderCubit>().createNewOrder(customerId);
+              });
+              return const Center(child: CircularProgressIndicator());
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            editing: (order) => _buildCartContent(context, order),
+            saving: () => const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Guardando pedido...'),
+                ],
               ),
-              saved: (order) => _buildOrderSaved(context, order),
-              error: (message) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: AppPalette.error,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      message,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+            ),
+            saved: (order) => _buildOrderSaved(context, order),
+            error: (message) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: AppPalette.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-            );
-          },
+            ),
+          ),
         ),
         floatingActionButton: BlocBuilder<OrderCubit, OrderState>(
-          builder: (context, state) {
-            return state.maybeWhen(
-              editing: (order) => FloatingActionButton(
-                onPressed: () => _showProductSelector(context),
-                child: const Icon(Icons.add),
-              ),
-              orElse: () => const SizedBox.shrink(),
-            );
-          },
+          builder: (context, state) => state.maybeWhen(
+            editing: (order) => FloatingActionButton(
+              onPressed: () => _showProductSelector(context),
+              child: const Icon(Icons.add),
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
         ),
       );
 
@@ -265,11 +260,10 @@ class CartPage extends StatelessWidget {
       );
 
   void _showProductSelector(BuildContext context) {
-    // TODO: Implement product selector
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => const ProductSelectorSheet(),
+      builder: (context) => ProductSelectorSheet(customerId: customerId),
     );
   }
 
@@ -375,66 +369,223 @@ class CartItemTile extends StatelessWidget {
       );
 }
 
-class ProductSelectorSheet extends StatelessWidget {
-  const ProductSelectorSheet({super.key});
+class ProductSelectorSheet extends StatefulWidget {
+  final String customerId;
+
+  const ProductSelectorSheet({
+    super.key,
+    required this.customerId,
+  });
 
   @override
-  Widget build(BuildContext context) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Seleccionar Producto',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const Divider(),
+  State<ProductSelectorSheet> createState() => _ProductSelectorSheetState();
+}
 
-            // Search
-            TextField(
-              decoration: const InputDecoration(
-                hintText: 'Buscar productos...',
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: (value) {
-                // TODO: Implement product search
-              },
-            ),
-            const SizedBox(height: 16),
+class _ProductSelectorSheetState extends State<ProductSelectorSheet> {
+  final ProductsRepository _productsRepository = ProductsRepository();
+  final TextEditingController _searchController = TextEditingController();
 
-            // Products list
-            Expanded(
-              child: ListView.builder(
-                itemCount: 10, // TODO: Use real products
-                itemBuilder: (context, index) {
-                  return ListTile(
-                    title: Text('Producto $index'),
-                    subtitle: Text('\$${(index + 1) * 10}.00'),
-                    trailing: ElevatedButton(
-                      onPressed: () {
-                        // TODO: Add product to cart
-                        Navigator.of(context).pop();
-                      },
-                      child: const Text('Agregar'),
-                    ),
-                  );
-                },
+  List<ProductWithPrice> _products = [];
+  List<ProductWithPrice> _filteredProducts = [];
+  bool _isLoading = true;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+      _filterProducts();
+    });
+  }
+
+  void _filterProducts() {
+    if (_searchQuery.isEmpty) {
+      _filteredProducts = _products;
+    } else {
+      _filteredProducts = _products.where((product) {
+        return product.product.name
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase()) ||
+            (product.product.sku
+                    ?.toLowerCase()
+                    .contains(_searchQuery.toLowerCase()) ??
+                false);
+      }).toList();
+    }
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      setState(() => _isLoading = true);
+      final products = await _productsRepository.getProductsWithPrices();
+      setState(() {
+        _products = products;
+        _filteredProducts = products;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error cargando productos: $e')),
+        );
+      }
+    }
+  }
+
+  void _addProductToCart(ProductWithPrice productWithPrice) {
+    final orderItem = OrderItem(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      orderId: 'temp_order_id', // TODO: Get from context
+      productId: productWithPrice.product.id,
+      qty: 1,
+      price: productWithPrice.priceValue ?? 0.0,
+      total: productWithPrice.priceValue ?? 0.0,
+    );
+
+    // TODO: Necesitamos obtener el Product desde ProductWithPrice
+    // Por ahora, creamos un Product temporal usando el modelo de sales
+    final product = Product(
+      id: productWithPrice.product.id,
+      name: productWithPrice.product.name,
+      sku: productWithPrice.product.sku,
+      tax: productWithPrice.product.tax ?? 0.0,
+      active: productWithPrice.product.active,
+      companyId: productWithPrice.product.companyId,
+      createdAt: productWithPrice.product.createdAt,
+    );
+
+    context
+        .read<OrderCubit>()
+        .addItem(product, 1, productWithPrice.priceValue ?? 0.0);
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${productWithPrice.product.name} agregado al carrito'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Seleccionar Productos',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Barra de búsqueda
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Buscar productos...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
-          ],
-        ),
-      );
+          ),
+          const SizedBox(height: 16),
+
+          // Lista de productos
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredProducts.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.inventory_2_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchQuery.isEmpty
+                                  ? 'No hay productos disponibles'
+                                  : 'No se encontraron productos',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredProducts.length,
+                        itemBuilder: (context, index) {
+                          final productWithPrice = _filteredProducts[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              title: Text(
+                                productWithPrice.product.name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w500),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (productWithPrice.product.unit != null)
+                                    Text(
+                                        'Unidad: ${productWithPrice.product.unit}'),
+                                  Text(
+                                    productWithPrice.formattedPrice,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              trailing: IconButton(
+                                onPressed: () =>
+                                    _addProductToCart(productWithPrice),
+                                icon: const Icon(Icons.add_circle),
+                                color: AppPalette.primary,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
 }

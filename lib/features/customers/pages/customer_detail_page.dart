@@ -39,17 +39,27 @@ class _CustomerDetailPageState extends State<CustomerDetailPage>
   }
 
   void _loadCustomer() {
-    // TODO: Load customer details from repository
-    _customer = Customer(
-      id: widget.customerId,
-      companyId: 'company_id',
-      name: 'Cliente Ejemplo',
-      email: 'cliente@ejemplo.com',
-      phone: '+1234567890',
-      address: 'Calle Ejemplo 123, Ciudad, País',
-      latitude: 19.4326,
-      longitude: -99.1332,
-    );
+    // Load customer details from the customers list
+    final customersState = context.read<CustomersCubit>().state;
+    if (customersState is CustomersLoaded) {
+      try {
+        _customer = customersState.customers.firstWhere(
+          (customer) => customer.id == widget.customerId,
+        );
+        setState(() {});
+      } catch (e) {
+        // If customer not found, show error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cliente no encontrado: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } else {
+      // If customers are not loaded yet, load them first
+      context.read<CustomersCubit>().loadCustomers();
+    }
   }
 
   void _loadVisitHistory() {
@@ -58,44 +68,49 @@ class _CustomerDetailPageState extends State<CustomerDetailPage>
 
   @override
   Widget build(BuildContext context) {
-    if (_customer == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_customer!.name),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () =>
-                context.push('/customers/edit/${widget.customerId}'),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Info', icon: Icon(Icons.info)),
-            Tab(text: 'Visitas', icon: Icon(Icons.location_on)),
-            Tab(text: 'Pedidos', icon: Icon(Icons.shopping_cart)),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildInfoTab(),
-          _buildVisitsTab(),
-          _buildOrdersTab(),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showVisitOptions(context),
-        icon: const Icon(Icons.add_location),
-        label: const Text('Nueva Visita'),
-      ),
+    return BlocListener<CustomersCubit, CustomersState>(
+      listener: (context, state) {
+        if (state is CustomersLoaded && _customer == null) {
+          _loadCustomer();
+        }
+      },
+      child: _customer == null
+          ? const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            )
+          : Scaffold(
+              appBar: AppBar(
+                title: Text(_customer!.name),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    onPressed: () =>
+                        context.push('/customers/edit/${widget.customerId}'),
+                  ),
+                ],
+                bottom: TabBar(
+                  controller: _tabController,
+                  tabs: const [
+                    Tab(text: 'Info', icon: Icon(Icons.info)),
+                    Tab(text: 'Visitas', icon: Icon(Icons.location_on)),
+                    Tab(text: 'Pedidos', icon: Icon(Icons.shopping_cart)),
+                  ],
+                ),
+              ),
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildInfoTab(),
+                  _buildVisitsTab(),
+                  _buildOrdersTab(),
+                ],
+              ),
+              floatingActionButton: FloatingActionButton.extended(
+                onPressed: () => _showVisitOptions(context),
+                icon: const Icon(Icons.add_location),
+                label: const Text('Nueva Visita'),
+              ),
+            ),
     );
   }
 
@@ -143,7 +158,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage>
                         Icons.location_on,
                         'Dirección',
                         _customer!.address!,
-                        onTap: () => _launchMaps(),
+                        onTap: _launchMaps,
                       ),
                     ],
                   ],
@@ -189,7 +204,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage>
                         ),
                         Expanded(
                           child: _buildStatItem(
-                              'Total Ventas', '\$2,450', Icons.attach_money),
+                              'Total Ventas', r'$2,450', Icons.attach_money),
                         ),
                       ],
                     ),
@@ -209,35 +224,71 @@ class _CustomerDetailPageState extends State<CustomerDetailPage>
           completed: (visit) => const Center(child: Text('Visita completada')),
           history: (visits) {
             if (visits.isEmpty) {
-              return const Center(
+              return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.location_off,
                       size: 64,
                       color: AppPalette.textSecondary,
                     ),
-                    SizedBox(height: 16),
-                    Text(
+                    const SizedBox(height: 16),
+                    const Text(
                       'No hay visitas registradas',
                       style: TextStyle(
                         fontSize: 18,
                         color: AppPalette.textSecondary,
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () =>
+                          context.go('/visit/history/${widget.customerId}'),
+                      icon: const Icon(Icons.history),
+                      label: const Text('Ver Historial Completo'),
+                    ),
                   ],
                 ),
               );
             }
 
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: visits.length,
-              itemBuilder: (context, index) {
-                final visit = visits[index];
-                return VisitListTile(visit: visit);
-              },
+            return Column(
+              children: [
+                // Header with view all button
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Últimas ${visits.length} visitas',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () =>
+                            context.go('/visit/history/${widget.customerId}'),
+                        icon: const Icon(Icons.history),
+                        label: const Text('Ver Todas'),
+                      ),
+                    ],
+                  ),
+                ),
+                // Visits list
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: visits.length,
+                    itemBuilder: (context, index) {
+                      final visit = visits[index];
+                      return VisitListTile(visit: visit);
+                    },
+                  ),
+                ),
+              ],
             );
           },
           error: (message) => Center(child: Text('Error: $message')),
@@ -315,9 +366,56 @@ class _CustomerDetailPageState extends State<CustomerDetailPage>
       );
 
   void _showVisitOptions(BuildContext context) {
+    // Verificar si ya hay una visita activa
+    final visitsState = context.read<VisitsCubit>().state;
+    if (visitsState is VisitsActiveVisit) {
+      _showActiveVisitDialog(context);
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       builder: (context) => VisitOptionsSheet(customer: _customer!),
+    );
+  }
+
+  void _showActiveVisitDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning, color: Colors.orange),
+            const SizedBox(width: 8),
+            const Text('Visita Activa'),
+          ],
+        ),
+        content: const Text(
+          'Ya tienes una visita en progreso. Debes finalizar la visita actual antes de iniciar una nueva.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Entendido'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: Navegar a la visita activa
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Redirigiendo a la visita activa...'),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppPalette.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ir a Visita Activa'),
+          ),
+        ],
+      ),
     );
   }
 

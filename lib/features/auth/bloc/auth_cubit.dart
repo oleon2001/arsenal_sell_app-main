@@ -1,7 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../../config/logger.dart';
 import '../../../data/models/auth/user_profile.dart';
 import '../../../data/repositories/auth_repository.dart';
-import '../../../config/logger.dart';
 
 // Commented out until generated files are available
 // part 'auth_state.dart';

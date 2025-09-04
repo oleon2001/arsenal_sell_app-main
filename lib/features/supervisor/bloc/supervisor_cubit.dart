@@ -144,7 +144,6 @@ class SupervisorCubit extends Cubit<SupervisorState> {
           user: UserProfile(
             id: userId,
             fullName: 'Juan Pérez',
-            role: UserRole.vendedor,
           ),
           todayVisits: [],
           todayOrders: [],

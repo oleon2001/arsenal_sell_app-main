@@ -1,8 +1,8 @@
-import '../../entities.dart';
-import '../../../data/repositories/auth_repository.dart';
-import '../../../services/sync/sync_queue.dart';
-import '../../../services/location/location_service.dart';
 import '../../../config/logger.dart';
+import '../../../data/repositories/auth_repository.dart';
+import '../../../services/location/location_service.dart';
+import '../../../services/sync/sync_queue.dart';
+import '../../entities.dart';
 import 'sign_in.dart'; // For NoParams
 
 class SignOutParams {

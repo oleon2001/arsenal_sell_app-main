@@ -1,16 +1,18 @@
-import 'package:arsenal_sell_app/config/logger.dart';
-import 'package:arsenal_sell_app/data/models/companies/company.dart';
-import 'package:arsenal_sell_app/data/remote/supabase_client.dart';
+import '../../config/logger.dart';
+import '../models/companies/company.dart';
+import '../remote/supabase_client.dart';
 
 class CompaniesRepository {
   final SupabaseService _supabase = SupabaseService();
 
   Future<List<Company>> getCompanies() async {
     try {
+      logger.i('🏢 CompaniesRepository: Iniciando carga de compañías...');
       final response = await _supabase.getCompanies();
+      logger.i('🏢 CompaniesRepository: ${response.length} compañías cargadas');
       return response;
     } catch (e) {
-      logger.e('Get companies error: $e');
+      logger.e('🏢 CompaniesRepository error: $e');
       rethrow;
     }
   }
@@ -22,6 +24,16 @@ class CompaniesRepository {
     } catch (e) {
       logger.e('Get company by ID error: $e');
       return null;
+    }
+  }
+
+  Future<Company> createCompany(Company company) async {
+    try {
+      final response = await _supabase.createCompany(company);
+      return response;
+    } catch (e) {
+      logger.e('Create company error: $e');
+      rethrow;
     }
   }
 }

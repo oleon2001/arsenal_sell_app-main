@@ -75,7 +75,6 @@ class CreateOrderUseCase {
         customerId: customerId,
         userId: userId,
         priceListId: priceListId,
-        status: OrderStatus.draft,
         subtotal: subtotal,
         taxTotal: taxTotal,
         discountTotal: discountTotal,

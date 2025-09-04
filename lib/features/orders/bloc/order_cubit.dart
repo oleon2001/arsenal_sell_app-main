@@ -17,7 +17,6 @@ class OrderCubit extends Cubit<OrderState> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       companyId: 'current_company_id', // TODO: Get from auth
       customerId: customerId,
-      status: OrderStatus.draft,
       items: [],
     );
 

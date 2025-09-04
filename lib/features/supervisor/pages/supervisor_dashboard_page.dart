@@ -213,7 +213,7 @@ class _SupervisorDashboardPageState extends State<SupervisorDashboardPage>
                     const Center(
                   child: Text('Selecciona un período para generar el reporte'),
                 ),
-                reportLoaded: (report) => _buildReportView(report),
+                reportLoaded: _buildReportView,
                 loadingReport: () =>
                     const Center(child: CircularProgressIndicator()),
                 error: (message) => const Center(
@@ -302,19 +302,19 @@ class _SupervisorDashboardPageState extends State<SupervisorDashboardPage>
                 target: LatLng(19.4326, -99.1332), // Mexico City
                 zoom: 11,
               ),
-              markers: teamLocations.map((location) {
-                return Marker(
-                  markerId: MarkerId(location.userId),
-                  position: LatLng(location.latitude, location.longitude),
-                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueBlue,
-                  ),
-                  infoWindow: InfoWindow(
-                    title: 'Equipo ${location.userId}',
-                    snippet: 'Actualizado: ${_formatTime(location.at)}',
-                  ),
-                );
-              }).toSet(),
+              markers: teamLocations
+                  .map((location) => Marker(
+                        markerId: MarkerId(location.userId),
+                        position: LatLng(location.latitude, location.longitude),
+                        icon: BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueBlue,
+                        ),
+                        infoWindow: InfoWindow(
+                          title: 'Equipo ${location.userId}',
+                          snippet: 'Actualizado: ${_formatTime(location.at)}',
+                        ),
+                      ))
+                  .toSet(),
               myLocationButtonEnabled: false,
               zoomControlsEnabled: false,
             ),
@@ -461,9 +461,9 @@ class _SupervisorDashboardPageState extends State<SupervisorDashboardPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Reporte de Rendimiento',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -598,7 +598,7 @@ class _SupervisorDashboardPageState extends State<SupervisorDashboardPage>
   void _showTeamMessageDialog() {
     showDialog(
       context: context,
-      builder: (context) => TeamMessageDialog(),
+      builder: (context) => const TeamMessageDialog(),
     );
   }
 
@@ -619,16 +619,16 @@ class TeamMemberCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
         margin: const EdgeInsets.only(bottom: 8),
         child: ListTile(
-          leading: CircleAvatar(
+          leading: const CircleAvatar(
             backgroundColor: AppPalette.success,
-            child: const Icon(Icons.person, color: Colors.white),
+            child: Icon(Icons.person, color: Colors.white),
           ),
           title: Text('Usuario ${location.userId}'),
           subtitle: Text('Última actualización: ${_formatTime(location.at)}'),
           trailing: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.location_on,
                 color: AppPalette.success,
               ),

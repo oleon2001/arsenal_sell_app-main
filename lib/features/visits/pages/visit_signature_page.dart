@@ -74,158 +74,155 @@ class _VisitSignaturePageState extends State<VisitSignaturePage> {
               },
             );
           },
-          builder: (context, state) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Instructions
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppPalette.info.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border:
-                          Border.all(color: AppPalette.info.withOpacity(0.3)),
+          builder: (context, state) => SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Instructions
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppPalette.info.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppPalette.info.withOpacity(0.3)),
+                  ),
+                  child: const Text(
+                    'Solicita al cliente que firme en el área designada para confirmar la visita.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppPalette.info,
                     ),
-                    child: const Text(
-                      'Solicita al cliente que firme en el área designada para confirmar la visita.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppPalette.info,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Signer name
+                const Text(
+                  'Nombre del firmante',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _signerNameController,
+                  decoration: const InputDecoration(
+                    hintText: 'Nombre completo',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Signature pad
+                const Text(
+                  'Firma',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 250,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Signature(
+                    controller: _signatureController,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Signature controls
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _clearSignature,
+                        icon: const Icon(Icons.clear),
+                        label: const Text('Limpiar'),
                       ),
-                      textAlign: TextAlign.center,
                     ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Signer name
-                  const Text(
-                    'Nombre del firmante',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _signerNameController,
-                    decoration: const InputDecoration(
-                      hintText: 'Nombre completo',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Signature pad
-                  const Text(
-                    'Firma',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 250,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Signature(
-                      controller: _signatureController,
-                      backgroundColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Signature controls
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _clearSignature,
-                          icon: const Icon(Icons.clear),
-                          label: const Text('Limpiar'),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _captureSignature,
+                        icon: const Icon(Icons.check),
+                        label: const Text('Capturar'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppPalette.success,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _captureSignature,
-                          icon: const Icon(Icons.check),
-                          label: const Text('Capturar'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppPalette.success,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Preview signature
-                  if (_signatureData != null) ...[
-                    const Text(
-                      'Firma capturada',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 150,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppPalette.success),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Image.memory(
-                        _signatureData!,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
                   ],
+                ),
+                const SizedBox(height: 16),
 
-                  // Finish visit button
-                  SizedBox(
+                // Preview signature
+                if (_signatureData != null) ...[
+                  const Text(
+                    'Firma capturada',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 150,
                     width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: state.maybeWhen(
-                        loading: () => null,
-                        orElse: () =>
-                            _signatureData != null ? _finishVisit : null,
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppPalette.success,
-                      ),
-                      child: state.maybeWhen(
-                        loading: () => const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppPalette.success),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Image.memory(
+                      _signatureData!,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+
+                // Finish visit button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: state.maybeWhen(
+                      loading: () => null,
+                      orElse: () =>
+                          _signatureData != null ? _finishVisit : null,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppPalette.success,
+                    ),
+                    child: state.maybeWhen(
+                      loading: () => const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
-                        orElse: () => const Text(
-                          'Finalizar Visita',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                      ),
+                      orElse: () => const Text(
+                        'Finalizar Visita',
+                        style: TextStyle(fontSize: 16),
                       ),
                     ),
                   ),
-                ],
-              ),
-            );
-          },
+                ),
+              ],
+            ),
+          ),
         ),
       );
 

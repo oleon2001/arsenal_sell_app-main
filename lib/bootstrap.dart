@@ -4,11 +4,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'config/env.dart';
@@ -64,8 +64,9 @@ Future<void> bootstrap() async {
   _requestLocationPermissionsInBackground();
 
   // Initialize Database
-  // TODO: Implement database initialization method in DatabaseHelper
-  // await DatabaseHelper.instance.initialize();
+  print(' Inicializando base de datos...');
+  await DatabaseHelper.instance.initialize();
+  print(' Base de datos inicializada en ${stopwatch.elapsedMilliseconds}ms');
 
   // Initialize Firebase Messaging - Temporarily commented out
   // TODO: Configure Firebase properly with google-services.json and firebase_options.dart

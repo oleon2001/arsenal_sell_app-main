@@ -25,9 +25,7 @@ class LocalNotificationsService {
           AndroidInitializationSettings('@mipmap/ic_launcher');
 
       // iOS initialization settings
-      const iosSettings = DarwinInitializationSettings(
-        requestBadgePermission: true,
-      );
+      const iosSettings = DarwinInitializationSettings();
 
       // Initialization settings
       const initSettings = InitializationSettings(

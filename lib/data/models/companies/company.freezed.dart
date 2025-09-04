@@ -22,7 +22,13 @@ Company _$CompanyFromJson(Map<String, dynamic> json) {
 mixin _$Company {
   String get id => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
+  String? get code => throw _privateConstructorUsedError;
+  String? get email => throw _privateConstructorUsedError;
+  String? get phone => throw _privateConstructorUsedError;
+  String? get address => throw _privateConstructorUsedError;
+  bool? get isActive => throw _privateConstructorUsedError;
   DateTime? get createdAt => throw _privateConstructorUsedError;
+  DateTime? get updatedAt => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -34,7 +40,16 @@ abstract class $CompanyCopyWith<$Res> {
   factory $CompanyCopyWith(Company value, $Res Function(Company) then) =
       _$CompanyCopyWithImpl<$Res, Company>;
   @useResult
-  $Res call({String id, String name, DateTime? createdAt});
+  $Res call(
+      {String id,
+      String name,
+      String? code,
+      String? email,
+      String? phone,
+      String? address,
+      bool? isActive,
+      DateTime? createdAt,
+      DateTime? updatedAt});
 }
 
 /// @nodoc
@@ -52,7 +67,13 @@ class _$CompanyCopyWithImpl<$Res, $Val extends Company>
   $Res call({
     Object? id = null,
     Object? name = null,
+    Object? code = freezed,
+    Object? email = freezed,
+    Object? phone = freezed,
+    Object? address = freezed,
+    Object? isActive = freezed,
     Object? createdAt = freezed,
+    Object? updatedAt = freezed,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -63,9 +84,33 @@ class _$CompanyCopyWithImpl<$Res, $Val extends Company>
           ? _value.name
           : name // ignore: cast_nullable_to_non_nullable
               as String,
+      code: freezed == code
+          ? _value.code
+          : code // ignore: cast_nullable_to_non_nullable
+              as String?,
+      email: freezed == email
+          ? _value.email
+          : email // ignore: cast_nullable_to_non_nullable
+              as String?,
+      phone: freezed == phone
+          ? _value.phone
+          : phone // ignore: cast_nullable_to_non_nullable
+              as String?,
+      address: freezed == address
+          ? _value.address
+          : address // ignore: cast_nullable_to_non_nullable
+              as String?,
+      isActive: freezed == isActive
+          ? _value.isActive
+          : isActive // ignore: cast_nullable_to_non_nullable
+              as bool?,
       createdAt: freezed == createdAt
           ? _value.createdAt
           : createdAt // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      updatedAt: freezed == updatedAt
+          ? _value.updatedAt
+          : updatedAt // ignore: cast_nullable_to_non_nullable
               as DateTime?,
     ) as $Val);
   }
@@ -78,7 +123,16 @@ abstract class _$$CompanyImplCopyWith<$Res> implements $CompanyCopyWith<$Res> {
       __$$CompanyImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String id, String name, DateTime? createdAt});
+  $Res call(
+      {String id,
+      String name,
+      String? code,
+      String? email,
+      String? phone,
+      String? address,
+      bool? isActive,
+      DateTime? createdAt,
+      DateTime? updatedAt});
 }
 
 /// @nodoc
@@ -94,7 +148,13 @@ class __$$CompanyImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? name = null,
+    Object? code = freezed,
+    Object? email = freezed,
+    Object? phone = freezed,
+    Object? address = freezed,
+    Object? isActive = freezed,
     Object? createdAt = freezed,
+    Object? updatedAt = freezed,
   }) {
     return _then(_$CompanyImpl(
       id: null == id
@@ -105,9 +165,33 @@ class __$$CompanyImplCopyWithImpl<$Res>
           ? _value.name
           : name // ignore: cast_nullable_to_non_nullable
               as String,
+      code: freezed == code
+          ? _value.code
+          : code // ignore: cast_nullable_to_non_nullable
+              as String?,
+      email: freezed == email
+          ? _value.email
+          : email // ignore: cast_nullable_to_non_nullable
+              as String?,
+      phone: freezed == phone
+          ? _value.phone
+          : phone // ignore: cast_nullable_to_non_nullable
+              as String?,
+      address: freezed == address
+          ? _value.address
+          : address // ignore: cast_nullable_to_non_nullable
+              as String?,
+      isActive: freezed == isActive
+          ? _value.isActive
+          : isActive // ignore: cast_nullable_to_non_nullable
+              as bool?,
       createdAt: freezed == createdAt
           ? _value.createdAt
           : createdAt // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      updatedAt: freezed == updatedAt
+          ? _value.updatedAt
+          : updatedAt // ignore: cast_nullable_to_non_nullable
               as DateTime?,
     ));
   }
@@ -116,7 +200,16 @@ class __$$CompanyImplCopyWithImpl<$Res>
 /// @nodoc
 @JsonSerializable()
 class _$CompanyImpl implements _Company {
-  const _$CompanyImpl({required this.id, required this.name, this.createdAt});
+  const _$CompanyImpl(
+      {required this.id,
+      required this.name,
+      this.code,
+      this.email,
+      this.phone,
+      this.address,
+      this.isActive,
+      this.createdAt,
+      this.updatedAt});
 
   factory _$CompanyImpl.fromJson(Map<String, dynamic> json) =>
       _$$CompanyImplFromJson(json);
@@ -126,11 +219,23 @@ class _$CompanyImpl implements _Company {
   @override
   final String name;
   @override
+  final String? code;
+  @override
+  final String? email;
+  @override
+  final String? phone;
+  @override
+  final String? address;
+  @override
+  final bool? isActive;
+  @override
   final DateTime? createdAt;
+  @override
+  final DateTime? updatedAt;
 
   @override
   String toString() {
-    return 'Company(id: $id, name: $name, createdAt: $createdAt)';
+    return 'Company(id: $id, name: $name, code: $code, email: $email, phone: $phone, address: $address, isActive: $isActive, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -140,13 +245,22 @@ class _$CompanyImpl implements _Company {
             other is _$CompanyImpl &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.name, name) || other.name == name) &&
+            (identical(other.code, code) || other.code == code) &&
+            (identical(other.email, email) || other.email == email) &&
+            (identical(other.phone, phone) || other.phone == phone) &&
+            (identical(other.address, address) || other.address == address) &&
+            (identical(other.isActive, isActive) ||
+                other.isActive == isActive) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt));
+                other.createdAt == createdAt) &&
+            (identical(other.updatedAt, updatedAt) ||
+                other.updatedAt == updatedAt));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, id, name, createdAt);
+  int get hashCode => Object.hash(runtimeType, id, name, code, email, phone,
+      address, isActive, createdAt, updatedAt);
 
   @JsonKey(ignore: true)
   @override
@@ -166,7 +280,13 @@ abstract class _Company implements Company {
   const factory _Company(
       {required final String id,
       required final String name,
-      final DateTime? createdAt}) = _$CompanyImpl;
+      final String? code,
+      final String? email,
+      final String? phone,
+      final String? address,
+      final bool? isActive,
+      final DateTime? createdAt,
+      final DateTime? updatedAt}) = _$CompanyImpl;
 
   factory _Company.fromJson(Map<String, dynamic> json) = _$CompanyImpl.fromJson;
 
@@ -175,7 +295,19 @@ abstract class _Company implements Company {
   @override
   String get name;
   @override
+  String? get code;
+  @override
+  String? get email;
+  @override
+  String? get phone;
+  @override
+  String? get address;
+  @override
+  bool? get isActive;
+  @override
   DateTime? get createdAt;
+  @override
+  DateTime? get updatedAt;
   @override
   @JsonKey(ignore: true)
   _$$CompanyImplCopyWith<_$CompanyImpl> get copyWith =>

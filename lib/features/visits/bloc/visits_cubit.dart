@@ -1,15 +1,15 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:geolocator/geolocator.dart';
-import '../../../data/models/visits/visit.dart';
+
+import '../../../config/app_constants.dart';
+import '../../../config/logger.dart';
 import '../../../data/models/customers/customer.dart';
+import '../../../data/models/visits/visit.dart';
 import '../../../data/repositories/visits_repository.dart';
 import '../../../services/location/location_service.dart';
-import '../../../config/logger.dart';
-import '../../../config/app_constants.dart';
 
-part 'visits_state.dart';
 part 'visits_cubit.freezed.dart';
+part 'visits_state.dart';
 
 class VisitsCubit extends Cubit<VisitsState> {
   VisitsCubit(this._repository, this._locationService)

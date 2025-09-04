@@ -1,8 +1,9 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../models/visits/visit.dart';
-import '../local/drift/db.dart';
-import '../remote/supabase_client.dart';
+
 import '../../config/logger.dart';
+import '../local/drift/db.dart';
+import '../models/visits/visit.dart';
+import '../remote/supabase_client.dart';
 
 class VisitsRepository {
   final DatabaseHelper _db = DatabaseHelper.instance;

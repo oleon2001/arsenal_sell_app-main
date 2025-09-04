@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../features/auth/bloc/auth_cubit.dart';
-import '../data/models/auth/user_profile.dart';
+import 'package:go_router/go_router.dart';
+
 import '../config/logger.dart';
+import '../data/models/auth/user_profile.dart';
+import '../features/auth/bloc/auth_cubit.dart';
 
 class AuthGuard {
   static String? redirectIfUnauthenticated(

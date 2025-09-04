@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:isolate';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../../config/logger.dart';
+
 import '../../config/app_constants.dart';
+import '../../config/logger.dart';
 import '../../data/repositories/customers_repository.dart';
-import '../../data/repositories/visits_repository.dart';
 import '../../data/repositories/orders_repository.dart';
-import '../../data/repositories/tracking_repository.dart';
 import '../../data/repositories/payments_repository.dart';
+import '../../data/repositories/tracking_repository.dart';
+import '../../data/repositories/visits_repository.dart';
 import 'sync_queue.dart';
 
 enum SyncStatus {

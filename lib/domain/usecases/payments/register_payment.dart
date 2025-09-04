@@ -1,7 +1,6 @@
-import '../../../data/repositories/payments_repository.dart';
-import '../../../data/models/customers/customer.dart';
-import '../../../services/location/location_service.dart';
 import '../../../config/logger.dart';
+import '../../../data/repositories/payments_repository.dart';
+import '../../../services/location/location_service.dart';
 
 class RegisterPaymentUseCase {
   RegisterPaymentUseCase(this._repository, this._locationService);

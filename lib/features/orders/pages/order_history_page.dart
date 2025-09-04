@@ -49,24 +49,21 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
   Widget build(BuildContext context) => Scaffold(
         appBar: _buildAppBar(),
         body: BlocBuilder<OrderCubit, OrderState>(
-          builder: (context, state) {
-            return Column(
-              children: [
-                _buildTabBar(),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildOrdersList(null), // All orders
-                      _buildOrdersList(OrderStatus.sent), // Pending orders
-                      _buildOrdersList(
-                          OrderStatus.delivered), // Completed orders
-                    ],
-                  ),
+          builder: (context, state) => Column(
+            children: [
+              _buildTabBar(),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildOrdersList(null), // All orders
+                    _buildOrdersList(OrderStatus.sent), // Pending orders
+                    _buildOrdersList(OrderStatus.delivered), // Completed orders
+                  ],
                 ),
-              ],
-            );
-          },
+              ),
+            ],
+          ),
         ),
         floatingActionButton: widget.customerId != null
             ? FloatingActionButton.extended(
@@ -80,73 +77,68 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
             : null,
       );
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: Text(
-        widget.customerId != null
-            ? 'Pedidos del Cliente'
-            : 'Historial de Pedidos',
-        style: AppTypography.headline4.copyWith(color: Colors.white),
-      ),
-      elevation: 0,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.filter_list, color: Colors.white),
-          onPressed: _showFilterDialog,
-          tooltip: 'Filtrar',
+  PreferredSizeWidget _buildAppBar() => AppBar(
+        title: Text(
+          widget.customerId != null
+              ? 'Pedidos del Cliente'
+              : 'Historial de Pedidos',
+          style: AppTypography.headline4.copyWith(color: Colors.white),
         ),
-        IconButton(
-          icon: const Icon(Icons.search, color: Colors.white),
-          onPressed: _showSearchDialog,
-          tooltip: 'Buscar',
-        ),
-      ],
-    );
-  }
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list, color: Colors.white),
+            onPressed: _showFilterDialog,
+            tooltip: 'Filtrar',
+          ),
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: _showSearchDialog,
+            tooltip: 'Buscar',
+          ),
+        ],
+      );
 
-  Widget _buildTabBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicatorColor: AppPalette.primary,
-        indicatorWeight: 3,
-        labelColor: AppPalette.primary,
-        unselectedLabelColor: AppPalette.textSecondary,
-        labelStyle: AppTypography.labelLarge,
-        unselectedLabelStyle: AppTypography.labelMedium,
-        tabs: const [
-          Tab(
-            text: 'Todos',
-            icon: Icon(Icons.list_alt, size: 20),
-          ),
-          Tab(
-            text: 'Pendientes',
-            icon: Icon(Icons.pending_actions, size: 20),
-          ),
-          Tab(
-            text: 'Completados',
-            icon: Icon(Icons.check_circle_outline, size: 20),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildTabBar() => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: TabBar(
+          controller: _tabController,
+          indicatorColor: AppPalette.primary,
+          indicatorWeight: 3,
+          labelColor: AppPalette.primary,
+          unselectedLabelColor: AppPalette.textSecondary,
+          labelStyle: AppTypography.labelLarge,
+          unselectedLabelStyle: AppTypography.labelMedium,
+          tabs: const [
+            Tab(
+              text: 'Todos',
+              icon: Icon(Icons.list_alt, size: 20),
+            ),
+            Tab(
+              text: 'Pendientes',
+              icon: Icon(Icons.pending_actions, size: 20),
+            ),
+            Tab(
+              text: 'Completados',
+              icon: Icon(Icons.check_circle_outline, size: 20),
+            ),
+          ],
+        ),
+      );
 
   Widget _buildOrdersList(OrderStatus? filterStatus) {
-    // Mock data for demonstration
-    final orders = _getMockOrders()
-        .where((order) => filterStatus == null || order.status == filterStatus)
-        .toList();
+    // TODO: Implementar carga de datos reales desde el repositorio
+    // Por ahora, retornamos lista vacía hasta que se implemente la funcionalidad completa
+    final orders = <Order>[];
 
     if (orders.isEmpty) {
       return _buildEmptyState(filterStatus);
@@ -277,10 +269,10 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.search, color: AppPalette.primary),
-            const SizedBox(width: AppSpacing.sm),
+            SizedBox(width: AppSpacing.sm),
             Text('Buscar Pedidos', style: AppTypography.headline4),
           ],
         ),
@@ -291,7 +283,8 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Buscar por ID, cliente o producto...',
-                prefixIcon: Icon(Icons.search, color: AppPalette.textSecondary),
+                prefixIcon:
+                    const Icon(Icons.search, color: AppPalette.textSecondary),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppShapes.sm),
                 ),
@@ -302,14 +295,14 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancelar'),
+            child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () {
               // TODO: Implement search
               Navigator.pop(context);
             },
-            child: Text('Buscar'),
+            child: const Text('Buscar'),
           ),
         ],
       ),
@@ -342,55 +335,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     _loadOrders();
   }
 
-  List<Order> _getMockOrders() {
-    return [
-      Order(
-        id: 'ORD-001',
-        companyId: 'COMP-001',
-        customerId: 'CLI-001',
-        status: OrderStatus.sent,
-        items: [
-          OrderItem(
-            id: 'ITEM-001',
-            orderId: 'ORD-001',
-            productId: 'PROD-1',
-            qty: 2,
-            price: 1000,
-            total: 2000,
-          )
-        ],
-        grandTotal: 2875.0,
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-      Order(
-        id: 'ORD-002',
-        companyId: 'COMP-001',
-        customerId: 'CLI-002',
-        status: OrderStatus.delivered,
-        items: [
-          OrderItem(
-            id: 'ITEM-002',
-            orderId: 'ORD-002',
-            productId: 'PROD-2',
-            qty: 1,
-            price: 2070,
-            total: 2070,
-          )
-        ],
-        grandTotal: 2070.0,
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-      Order(
-        id: 'ORD-003',
-        companyId: 'COMP-001',
-        customerId: 'CLI-003',
-        status: OrderStatus.draft,
-        items: [],
-        grandTotal: 0.0,
-        createdAt: null,
-      ),
-    ];
-  }
+  // Los datos mock han sido eliminados y reemplazados por datos reales del repositorio
 
   String _getStatusDisplayName(OrderStatus status) {
     switch (status) {
@@ -456,7 +401,8 @@ class OrderCard extends StatelessWidget {
           AppComponents.infoField(
             icon: Icons.business,
             label: 'Cliente',
-            value: order.customerId,
+            value:
+                order.customer?.name ?? 'Cliente ${order.customerId ?? 'N/A'}',
             textColor: AppPalette.textPrimary,
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -532,24 +478,23 @@ class OrderCard extends StatelessWidget {
     required Color color,
     required String tooltip,
     required VoidCallback onPressed,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(AppShapes.sm),
-      ),
-      child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(icon, color: color, size: 20),
-        tooltip: tooltip,
-        padding: const EdgeInsets.all(AppSpacing.xs),
-        constraints: const BoxConstraints(
-          minWidth: 40,
-          minHeight: 40,
+  }) =>
+      Container(
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppShapes.sm),
         ),
-      ),
-    );
-  }
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(icon, color: color, size: 20),
+          tooltip: tooltip,
+          padding: const EdgeInsets.all(AppSpacing.xs),
+          constraints: const BoxConstraints(
+            minWidth: 40,
+            minHeight: 40,
+          ),
+        ),
+      );
 
   Color _getStatusColor(OrderStatus status) {
     switch (status) {
@@ -585,9 +530,7 @@ class OrderCard extends StatelessWidget {
     }
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
+  String _formatDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
 }
 
 class OrderFilterSheet extends StatefulWidget {
@@ -658,17 +601,17 @@ class _OrderFilterSheetState extends State<OrderFilterSheet> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<OrderStatus>(
-              value: _selectedStatus,
+              initialValue: _selectedStatus,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 hintText: 'Seleccionar estado',
               ),
-              items: OrderStatus.values.map((status) {
-                return DropdownMenuItem(
-                  value: status,
-                  child: Text(_getStatusDisplayName(status)),
-                );
-              }).toList(),
+              items: OrderStatus.values
+                  .map((status) => DropdownMenuItem(
+                        value: status,
+                        child: Text(_getStatusDisplayName(status)),
+                      ))
+                  .toList(),
               onChanged: (value) => setState(() => _selectedStatus = value),
             ),
             const SizedBox(height: 24),
@@ -888,7 +831,7 @@ class OrderDetailsSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          ...order.items.map((item) => _buildItemRow(item)),
+          ...order.items.map(_buildItemRow),
           const SizedBox(height: 20),
         ],
       );

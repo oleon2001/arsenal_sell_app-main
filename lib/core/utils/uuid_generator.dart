@@ -5,9 +5,8 @@ class UuidGenerator {
   static final Random _random = Random.secure();
 
   /// Genera un UUID v4 válido
-  static String generateV4() {
-    return '${_generateHex(8)}-${_generateHex(4)}-4${_generateHex(3)}-${_generateHex(4)}-${_generateHex(12)}';
-  }
+  static String generateV4() =>
+      '${_generateHex(8)}-${_generateHex(4)}-4${_generateHex(3)}-${_generateHex(4)}-${_generateHex(12)}';
 
   /// Genera un UUID basado en timestamp (para compatibilidad con datos existentes)
   static String generateFromTimestamp(int timestamp) {
@@ -22,12 +21,10 @@ class UuidGenerator {
   }
 
   /// Genera una cadena hexadecimal aleatoria de la longitud especificada
-  static String _generateHex(int length) {
-    return String.fromCharCodes(
-      Iterable.generate(
-          length, (_) => _chars.codeUnitAt(_random.nextInt(_chars.length))),
-    );
-  }
+  static String _generateHex(int length) => String.fromCharCodes(
+        Iterable.generate(
+            length, (_) => _chars.codeUnitAt(_random.nextInt(_chars.length))),
+      );
 
   /// Valida si una cadena es un UUID válido
   static bool isValidUuid(String uuid) {

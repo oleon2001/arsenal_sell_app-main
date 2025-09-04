@@ -275,7 +275,6 @@ class StartVisitUseCase implements UseCase<StartVisitResult, StartVisitParams> {
       checkinAccuracyM: currentLocation.accuracy,
       notes: params.notes,
       customer: customer,
-      isSynced: false,
     );
 
     return _visitsRepository.startVisit(visit);

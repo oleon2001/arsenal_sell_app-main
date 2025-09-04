@@ -1,11 +1,11 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../../../core/theme/palette.dart';
 import '../../../data/models/customers/customer.dart';
 import '../../../data/models/visits/visit.dart';
-import '../../../core/theme/palette.dart';
 
 class CustomerMarkerService {
   static final Map<String, BitmapDescriptor> _cachedIcons = {};

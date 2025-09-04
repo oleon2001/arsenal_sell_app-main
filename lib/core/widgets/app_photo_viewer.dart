@@ -23,13 +23,10 @@ class AppPhotoViewer extends StatelessWidget {
           color: Colors.black,
           child: PhotoViewGallery.builder(
             itemCount: photos.length,
-            builder: (context, index) {
-              return PhotoViewGalleryPageOptions(
-                imageProvider: FileImage(photos[index]),
-                heroAttributes:
-                    PhotoViewHeroAttributes(tag: photos[index].path),
-              );
-            },
+            builder: (context, index) => PhotoViewGalleryPageOptions(
+              imageProvider: FileImage(photos[index]),
+              heroAttributes: PhotoViewHeroAttributes(tag: photos[index].path),
+            ),
             scrollPhysics: const BouncingScrollPhysics(),
             backgroundDecoration: const BoxDecoration(color: Colors.black),
             pageController: PageController(initialPage: initialIndex),

@@ -315,7 +315,7 @@ class UploadService {
 
   String _sanitizeFileName(String fileName) => fileName
       .replaceAll(RegExp(r'[^\w\-_.]'), '_')
-      .replaceAll(RegExp(r'_+'), '_')
+      .replaceAll(RegExp('_+'), '_')
       .toLowerCase();
 
   void _validateImageFile(File file) {

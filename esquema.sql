@@ -1,25 +1,6 @@
 -- ========================================
 -- ARSENAL SELL ADMIN - ESQUEMA COMPLETO
 -- ========================================
--- 
--- Este archivo contiene el esquema completo de la base de datos
--- para la aplicación Arsenal Sell Admin.
--- 
--- INSTRUCCIONES DE IMPORTACIÓN:
--- 1. Abrir Supabase Dashboard
--- 2. Ir a SQL Editor
--- 3. Crear nueva consulta
--- 4. Copiar y pegar todo este contenido
--- 5. Ejecutar la consulta
--- 
--- NOTA: Asegúrate de que tu proyecto tenga habilitadas las extensiones:
--- - postgis
--- - pgcrypto
--- ========================================
-
--- =========================
--- 1) EXTENSIONES REQUERIDAS
--- =========================
 
 -- Habilitar PostGIS para funcionalidades geoespaciales
 CREATE EXTENSION IF NOT EXISTS "postgis";
