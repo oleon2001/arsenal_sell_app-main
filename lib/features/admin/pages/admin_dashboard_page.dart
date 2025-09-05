@@ -51,7 +51,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
               Tab(text: 'Resumen', icon: Icon(Icons.dashboard)),
               Tab(text: 'Usuarios', icon: Icon(Icons.people)),
               Tab(text: 'Sistema', icon: Icon(Icons.settings_applications)),
-              Tab(text: 'Auditoría', icon: Icon(Icons.audit)),
+              Tab(text: 'Auditoría', icon: Icon(Icons.assignment)),
             ],
           ),
         ),
@@ -232,7 +232,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           _buildStatCard(
             'Usuarios Activos',
             stats.activeUsers.toString(),
-            Icons.person_check,
+            Icons.person_check_circle,
             AppPalette.success,
           ),
           _buildStatCard(
@@ -409,7 +409,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
               ),
               const SizedBox(height: 16),
               _buildInfoRow('Versión', systemInfo.version),
-              _buildInfoRow('Última Actualización', systemInfo.lastUpdate),
+              _buildInfoRow('Última Actualización', systemInfo.lastUpdate.toString()),
               _buildInfoRow('Uptime', systemInfo.uptime),
               _buildInfoRow('Memoria Usada', systemInfo.memoryUsage),
             ],

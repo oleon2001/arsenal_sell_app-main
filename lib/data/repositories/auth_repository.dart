@@ -211,5 +211,42 @@ class AuthRepository {
     }
   }
 
+  Future<List<UserProfile>> getAllUsers() async {
+    try {
+      logger.i('🔍 Obteniendo todos los usuarios...');
+      
+      final response = await _supabase
+          .from('profiles')
+          .select('''
+            *,
+            companies!inner(name)
+          ''')
+          .order('created_at', ascending: false);
+
+      final users = <UserProfile>[];
+      
+      for (final userData in response) {
+        try {
+          // Obtener email desde auth.users si es posible
+          final authUser = await _supabase.auth.admin.getUserById(userData['id']);
+          if (authUser.user?.email != null) {
+            userData['email'] = authUser.user!.email;
+          }
+          
+          users.add(UserProfile.fromJson(userData));
+        } catch (e) {
+          logger.w('⚠️ Error procesando usuario ${userData['id']}: $e');
+          // Continuar con el siguiente usuario
+        }
+      }
+      
+      logger.i('✅ ${users.length} usuarios obtenidos exitosamente');
+      return users;
+    } catch (e) {
+      logger.e('❌ Error obteniendo usuarios: $e');
+      rethrow;
+    }
+  }
+
   Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
 }
