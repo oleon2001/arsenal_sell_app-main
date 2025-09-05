@@ -446,15 +446,6 @@ class _ProductSelectorSheetState extends State<ProductSelectorSheet> {
   }
 
   void _addProductToCart(ProductWithPrice productWithPrice) {
-    final orderItem = OrderItem(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      orderId: 'temp_order_id', // TODO: Get from context
-      productId: productWithPrice.product.id,
-      qty: 1,
-      price: productWithPrice.priceValue ?? 0.0,
-      total: productWithPrice.priceValue ?? 0.0,
-    );
-
     // TODO: Necesitamos obtener el Product desde ProductWithPrice
     // Por ahora, creamos un Product temporal usando el modelo de sales
     final product = Product(

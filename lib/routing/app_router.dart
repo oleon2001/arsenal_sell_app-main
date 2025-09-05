@@ -20,6 +20,9 @@ import '../features/visits/pages/visit_forms_page.dart';
 import '../features/visits/pages/visit_history_page.dart';
 import '../features/visits/pages/visit_photos_page.dart';
 import '../features/visits/pages/visit_signature_page.dart';
+import '../features/admin/pages/admin_dashboard_page.dart';
+import '../features/admin/pages/user_form_page.dart';
+import '../features/admin/pages/system_settings_page.dart';
 
 class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -181,6 +184,26 @@ class AppRouter {
           GoRoute(
             path: '/supervisor',
             builder: (context, state) => const SupervisorDashboardPage(),
+          ),
+
+          // Admin routes
+          GoRoute(
+            path: '/admin',
+            builder: (context, state) => const AdminDashboardPage(),
+          ),
+          GoRoute(
+            path: '/admin/settings',
+            builder: (context, state) => const SystemSettingsPage(),
+          ),
+          GoRoute(
+            path: '/admin/users/new',
+            builder: (context, state) => const UserFormPage(),
+          ),
+          GoRoute(
+            path: '/admin/users/:userId/edit',
+            builder: (context, state) => UserFormPage(
+              userId: state.pathParameters['userId']!,
+            ),
           ),
         ],
       ),

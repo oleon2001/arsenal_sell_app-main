@@ -150,6 +150,11 @@ class AppScaffold extends StatelessWidget {
             style: AppTypography.headline4.copyWith(
               color: Colors.white,
             ));
+      case '/admin':
+        return Text('Panel de Administración',
+            style: AppTypography.headline4.copyWith(
+              color: Colors.white,
+            ));
       default:
         return Text('Arsenal Sell App',
             style: AppTypography.headline4.copyWith(
@@ -344,16 +349,22 @@ class AppScaffold extends StatelessWidget {
           selectedItemColor: AppPalette.admin,
           unselectedItemColor: AppPalette.textSecondary,
           currentIndex: _getNavigationIndex(currentLocation, [
+            '/admin',
             '/dashboard',
             '/customers',
             '/supervisor',
           ]),
           onTap: (index) => _navigateToIndex(context, index, [
+            '/admin',
             '/dashboard',
             '/customers',
             '/supervisor',
           ]),
           items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.admin_panel_settings),
+              label: 'Admin',
+            ),
             BottomNavigationBarItem(
               icon: Icon(Icons.map),
               label: 'Mapa',
@@ -363,8 +374,8 @@ class AppScaffold extends StatelessWidget {
               label: 'Clientes',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.admin_panel_settings),
-              label: 'Admin',
+              icon: Icon(Icons.dashboard),
+              label: 'Panel',
             ),
           ],
         ),
@@ -673,8 +684,44 @@ class AppScaffold extends StatelessWidget {
         ]);
         break;
       case UserRole.supervisor:
+        roleSpecificItems.addAll([
+          ListTile(
+            leading: const Icon(Icons.dashboard, color: AppPalette.primary),
+            title:
+                const Text('Panel de Control', style: AppTypography.bodyMedium),
+            subtitle: const Text('Monitoreo en tiempo real',
+                style: AppTypography.bodySmall),
+            onTap: () {
+              Navigator.pop(context);
+              context.go('/supervisor');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.analytics, color: AppPalette.primary),
+            title: const Text('Reportes', style: AppTypography.bodyMedium),
+            subtitle: const Text('Análisis y estadísticas',
+                style: AppTypography.bodySmall),
+            onTap: () {
+              Navigator.pop(context);
+              _showReportsDialog(context);
+            },
+          ),
+        ]);
+        break;
       case UserRole.admin:
         roleSpecificItems.addAll([
+          ListTile(
+            leading:
+                const Icon(Icons.admin_panel_settings, color: AppPalette.admin),
+            title: const Text('Panel de Administración',
+                style: AppTypography.bodyMedium),
+            subtitle: const Text('Gestión del sistema',
+                style: AppTypography.bodySmall),
+            onTap: () {
+              Navigator.pop(context);
+              context.go('/admin');
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.dashboard, color: AppPalette.primary),
             title:
